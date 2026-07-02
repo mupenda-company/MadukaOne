@@ -54,6 +54,12 @@ $url = static function (string $path, array $query = []) use ($basePath): string
     <?php require __DIR__ . '/partials/confirm-modal.php'; ?>
 
     <script>
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                window.location.reload();
+            }
+        });
+
         const shell = document.querySelector('[data-app-shell]');
         const sidebarToggles = document.querySelectorAll('[data-sidebar-toggle]');
         const sidebarClose = document.querySelector('[data-sidebar-close]');

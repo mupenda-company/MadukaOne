@@ -16,6 +16,8 @@ final class AuthController
 
     public function login(array $params = []): void
     {
+        $this->sendNoStoreHeaders();
+
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
             $view = dirname(__DIR__) . '/Views/auth/login.php';
 
@@ -88,6 +90,7 @@ final class AuthController
     public function logout(array $params = []): void
     {
         $this->startSession();
+        $this->sendNoStoreHeaders();
         $_SESSION = [];
 
         if (ini_get('session.use_cookies')) {
@@ -475,6 +478,14 @@ final class AuthController
                 'use_strict_mode' => true,
             ]);
         }
+    }
+
+    private function sendNoStoreHeaders(): void
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Cache-Control: post-check=0, pre-check=0', false);
+        header('Pragma: no-cache');
+        header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
     }
 
     private function redirect(string $path): never

@@ -9,6 +9,11 @@ class DashboardController
     public function index(array $params = []): void
     {
         $this->startSession();
+        $this->sendNoStoreHeaders();
+
+        if (empty($_SESSION['user']) || !is_array($_SESSION['user'])) {
+            $this->redirect('/login');
+        }
 
         $shops = $this->shops();
         $currentUser = $this->currentUser();
@@ -124,13 +129,7 @@ class DashboardController
             return $user;
         }
 
-        return [
-            'id' => null,
-            'nom' => 'Administrateur',
-            'email' => 'admin@example.com',
-            'role' => 'admin',
-            'shop_id' => 1,
-        ];
+        $this->redirect('/login');
     }
 
     private function activeShop(array $shops, array $currentUser): array
@@ -161,5 +160,24 @@ class DashboardController
             ]);
         }
     }
-}
 
+    private function sendNoStoreHeaders(): void
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Cache-Control: post-check=0, pre-check=0', false);
+        header('Pragma: no-cache');
+        header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
+    }
+
+    private function redirect(string $path): never
+    {
+        if (!str_starts_with($path, 'http://') && !str_starts_with($path, 'https://') && !str_starts_with($path, '//')) {
+            $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+            $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
+            $path = $basePath . '/' . ltrim($path, '/');
+        }
+
+        header('Location: ' . $path, true, 302);
+        exit;
+    }
+}
