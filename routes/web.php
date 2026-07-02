@@ -14,6 +14,13 @@ return [
     ['POST', '/pos/sale', 'PosController@store'],
     ['GET', '/caisse', 'PosController@index'],
     ['POST', '/caisse/vente', 'PosController@store'],
+    ['GET', '/products', 'ProductController@index'],
+    ['GET', '/products/create', 'ProductController@create'],
+    ['POST', '/products', 'ProductController@store'],
+    ['GET', '/products/{id}', 'ProductController@show'],
+    ['GET', '/products/{id}/edit', 'ProductController@edit'],
+    ['POST', '/products/{id}/update', 'ProductController@update'],
+    ['POST', '/products/{id}/delete', 'ProductController@destroy'],
     ['GET', '/rapports/ventes', 'ReportController@sales'],
     ['GET', '/rapports/stock', 'ReportController@stockMovements'],
 ];
