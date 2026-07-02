@@ -10,6 +10,7 @@ return [
     ['GET', '/auth/apple', 'AuthController@redirectToApple'],
     ['POST', '/auth/apple/callback', 'AuthController@appleCallback'],
     ['GET', '/auth/apple/callback', 'AuthController@appleCallback'],
+    ['GET', '/logout', 'AuthController@logout'],
     ['POST', '/logout', 'AuthController@logout'],
     ['GET', '/profil', 'UserController@profile'],
     ['GET', '/profile', 'UserController@profile'],
