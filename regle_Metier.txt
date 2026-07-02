@@ -1,0 +1,20 @@
+Isolation Multi-Boutiques (Multi-tenancy) :
+Toute requête d'écriture ou de lecture concernant les Produits, Ventes, Approvisionnements, Clients, Fournisseurs et Dépenses doit OBLIGATOIREMENT inclure une clause de filtrage sur shop_id. Un agent ne peut jamais voir ou modifier les données d'une autre boutique que la sienne.
+
+Règle d'Immuabilité (Anti-fraude) :
+
+ZÉRO suppression physique (DELETE) dans les tables sales, sale_details, stock_movements, et expenses.
+
+ZÉRO modification (UPDATE) sur les prix appliqués dans sale_details ou sur les montants dans expenses.
+
+En cas d'erreur de caisse, le système doit passer par une action d'annulation qui génère un flux inverse historisé.
+
+Règle d'Or du Stock :
+Il est strictement interdit de faire un UPDATE products SET quantite_stock = ... de manière isolée. Toute modification de stock doit être encapsulée dans une Transaction PDO ($db->beginTransaction()) comprenant :
+
+L'écriture d'une ligne descriptive dans stock_movements.
+
+La modification de la quantité dans products.
+
+Séparation des Droits (Permissions) :
+Les agents/vendeurs n'ont aucun accès aux routes de modification de prix, d'ajustement de stock ou de consultation des rapports de bénéfices nets. Le Middleware.php doit bloquer ces requêtes au niveau du serveur.
