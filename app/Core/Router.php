@@ -135,6 +135,7 @@ final class Router
         $path = $this->normalizePath($path);
         $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
         $basePath = $this->normalizePath(dirname($scriptName));
+        $scriptDirectory = trim($basePath, '/');
 
         if ($basePath !== '/' && $path === $basePath) {
             return '/';
@@ -142,6 +143,18 @@ final class Router
 
         if ($basePath !== '/' && str_starts_with($path, $basePath . '/')) {
             return $this->normalizePath(substr($path, strlen($basePath)));
+        }
+
+        if (str_contains($path, '/index.php/')) {
+            return $this->normalizePath(substr($path, strpos($path, '/index.php/') + strlen('/index.php/')));
+        }
+
+        if ($scriptDirectory !== '' && str_contains($path, '/' . $scriptDirectory . '/')) {
+            return $this->normalizePath(substr($path, strpos($path, '/' . $scriptDirectory . '/') + strlen('/' . $scriptDirectory . '/')));
+        }
+
+        if (str_contains($path, '/public/')) {
+            return $this->normalizePath(substr($path, strpos($path, '/public/') + strlen('/public/')));
         }
 
         return $path;

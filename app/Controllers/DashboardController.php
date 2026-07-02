@@ -8,6 +8,8 @@ class DashboardController extends AppController
 {
     public function index(array $params = []): void
     {
+        $this->sendNoStoreHeaders();
+
         $shops = $this->shops();
         $currentUser = $this->currentUser();
         $activeShop = $this->activeShop($shops, $currentUser);
@@ -98,6 +100,14 @@ class DashboardController extends AppController
             'today_sales' => (int) $signalSummary['today_sales'],
             'customer_debt' => (float) $signalSummary['customer_debt'],
         ];
+    }
+
+    private function sendNoStoreHeaders(): void
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Cache-Control: post-check=0, pre-check=0', false);
+        header('Pragma: no-cache');
+        header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
     }
 
     private function money(float $value): string

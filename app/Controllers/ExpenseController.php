@@ -3,21 +3,24 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/AppController.php';
+require_once dirname(__DIR__) . '/Core/Validator.php';
+require_once dirname(__DIR__) . '/Models/Expense.php';
 
 class ExpenseController extends AppController
 {
+    private Expense $expenses;
+
+    public function __construct()
+    {
+        $this->expenses = new Expense();
+    }
+
     public function index(array $params = []): void
     {
-        $statement = Database::connection()->prepare(
-            'SELECT expenses.titre, expenses.categorie, expenses.date_depense, expenses.montant, users.nom AS user
-             FROM expenses
-             INNER JOIN users ON users.id = expenses.user_id
-             WHERE expenses.shop_id = :shop_id
-             ORDER BY expenses.date_depense DESC, expenses.id DESC
-             LIMIT 50'
+        $expenses = array_map(
+            static fn (array $expense): array => array_merge($expense, ['user' => $expense['user_name'] ?? '']),
+            $this->expenses->allByShop($this->currentShopId())
         );
-        $statement->execute(['shop_id' => $this->currentShopId()]);
-        $expenses = $statement->fetchAll();
 
         $this->render('expenses/index', [
             'pageTitle' => 'Charges de la boutique',
@@ -26,37 +29,31 @@ class ExpenseController extends AppController
         ]);
     }
 
+    public function create(array $params = []): void
+    {
+        $this->render('expenses/create', [
+            'pageTitle' => 'Nouvelle dépense',
+            'activeMenu' => 'finances',
+        ]);
+    }
+
     public function store(array $params = []): void
     {
-        $title = trim((string) ($_POST['titre'] ?? ''));
-        $amount = (float) ($_POST['montant'] ?? 0);
-        $category = (string) ($_POST['categorie'] ?? 'autre');
-        $date = trim((string) ($_POST['date_depense'] ?? ''));
+        $data = $this->payload();
+        $validator = Validator::make($data)
+            ->required('titre', 'Titre')
+            ->maxLength('titre', 120, 'Titre')
+            ->required('montant', 'Montant')
+            ->numeric('montant', 'Montant')
+            ->positiveOrZero('montant', 'Montant');
 
-        if ($title === '' || $amount <= 0) {
-            $this->flashError('Le titre et un montant positif sont obligatoires.');
+        if ($validator->fails() || (float) $data['montant'] <= 0) {
+            $this->flashError($this->firstError($validator->errors()) ?: 'Le montant doit être supérieur à zéro.');
             $this->redirect('/expenses');
         }
 
-        if (!in_array($category, ['transport', 'facture', 'loyer', 'salaire', 'perte_avarie', 'autre'], true)) {
-            $category = 'autre';
-        }
-
         try {
-            $statement = Database::connection()->prepare(
-                'INSERT INTO expenses (shop_id, user_id, titre, description, montant, categorie, date_depense)
-                 VALUES (:shop_id, :user_id, :titre, :description, :montant, :categorie, :date_depense)'
-            );
-            $statement->execute([
-                'shop_id' => $this->currentShopId(),
-                'user_id' => $this->currentUserId(),
-                'titre' => $title,
-                'description' => $this->nullableString($_POST['description'] ?? null),
-                'montant' => $amount,
-                'categorie' => $category,
-                'date_depense' => $date !== '' ? $date . ' 00:00:00' : date('Y-m-d H:i:s'),
-            ]);
-
+            $this->expenses->create($data, $this->currentShopId(), $this->currentUserId());
             $this->flashSuccess('Dépense enregistrée avec succès.');
         } catch (Throwable $exception) {
             $this->flashError('Impossible d’enregistrer la dépense: ' . $exception->getMessage());
@@ -65,11 +62,51 @@ class ExpenseController extends AppController
         $this->redirect('/expenses');
     }
 
-    private function nullableString(mixed $value): ?string
+    public function show(array $params = []): void
     {
-        $value = trim((string) $value);
+        $id = (int) ($params['id'] ?? 0);
 
-        return $value === '' ? null : $value;
+        if ($id <= 0) {
+            $this->abort(404, 'Dépense introuvable.');
+        }
+
+        $expense = $this->expenses->findByShop($id, $this->currentShopId());
+
+        if ($expense === null) {
+            $this->abort(404, 'Dépense introuvable pour cette boutique.');
+        }
+
+        $this->render('expenses/show', [
+            'pageTitle' => 'Détail dépense',
+            'activeMenu' => 'finances',
+            'expense' => $expense,
+        ]);
+    }
+
+    private function payload(): array
+    {
+        return [
+            'titre' => $_POST['titre'] ?? '',
+            'description' => $_POST['description'] ?? null,
+            'montant' => $_POST['montant'] ?? 0,
+            'categorie' => $_POST['categorie'] ?? 'autre',
+            'date_depense' => $this->dateValue($_POST['date_depense'] ?? null),
+        ];
+    }
+
+    private function dateValue(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value === '' ? null : $value . ' 00:00:00';
+    }
+
+    private function firstError(array $errors): string
+    {
+        foreach ($errors as $messages) {
+            return (string) ($messages[0] ?? '');
+        }
+
+        return '';
     }
 }
-

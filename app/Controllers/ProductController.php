@@ -3,24 +3,24 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/AppController.php';
+require_once dirname(__DIR__) . '/Core/Validator.php';
+require_once dirname(__DIR__) . '/Models/Product.php';
 
 class ProductController extends AppController
 {
+    private Product $products;
+
+    public function __construct()
+    {
+        $this->products = new Product();
+    }
+
     public function index(array $params = []): void
     {
-        $statement = Database::connection()->prepare(
-            'SELECT id, ref, nom, code_barre, prix_achat, prix_vente, quantite_stock, alerte_stock_min, actif
-             FROM products
-             WHERE shop_id = :shop_id
-             ORDER BY nom ASC'
-        );
-        $statement->execute(['shop_id' => $this->currentShopId()]);
-        $products = $statement->fetchAll();
-
         $this->render('products/index', [
             'pageTitle' => 'Produits',
             'activeMenu' => 'products',
-            'products' => $products,
+            'products' => $this->products->allByShop($this->currentShopId()),
         ]);
     }
 
@@ -34,59 +34,23 @@ class ProductController extends AppController
 
     public function store(array $params = []): void
     {
-        $shopId = $this->currentShopId();
-        $userId = $this->currentUserId();
-        $name = trim((string) ($_POST['nom'] ?? ''));
-        $purchasePrice = max(0, (float) ($_POST['prix_achat'] ?? 0));
-        $salePrice = max(0, (float) ($_POST['prix_vente'] ?? 0));
-        $stock = max(0, (int) ($_POST['quantite_stock'] ?? 0));
-        $alert = max(0, (int) ($_POST['alerte_stock_min'] ?? 0));
+        $data = $this->productPayload(allowInitialStock: true);
+        $validator = $this->validateProduct($data, allowInitialStock: true);
 
-        if ($name === '') {
-            $this->flashError('Le nom du produit est obligatoire.');
+        if ($validator->fails()) {
+            $this->flashError($this->firstError($validator->errors()));
             $this->redirect('/products/create');
         }
 
         try {
-            $db = Database::getInstance();
-            $db->transaction(function (PDO $pdo) use ($shopId, $userId, $name, $purchasePrice, $salePrice, $stock, $alert): void {
-                $statement = $pdo->prepare(
-                    'INSERT INTO products (shop_id, code_barre, ref, nom, description, prix_achat, prix_vente, quantite_stock, alerte_stock_min, created_by, updated_by)
-                     VALUES (:shop_id, :code_barre, :ref, :nom, :description, :prix_achat, :prix_vente, :quantite_stock, :alerte_stock_min, :created_by, :updated_by)'
-                );
-                $statement->execute([
-                    'shop_id' => $shopId,
-                    'code_barre' => $this->nullableString($_POST['code_barre'] ?? null),
-                    'ref' => $this->nullableString($_POST['ref'] ?? null),
-                    'nom' => $name,
-                    'description' => $this->nullableString($_POST['description'] ?? null),
-                    'prix_achat' => $purchasePrice,
-                    'prix_vente' => $salePrice,
-                    'quantite_stock' => $stock,
-                    'alerte_stock_min' => $alert,
-                    'created_by' => $userId,
-                    'updated_by' => $userId,
-                ]);
+            $productId = $this->products->create($data, $this->currentShopId(), $this->currentUserId());
+            $stock = (int) ($data['quantite_stock'] ?? 0);
 
-                if ($stock > 0) {
-                    $productId = (int) $pdo->lastInsertId();
-                    $movement = $pdo->prepare(
-                        'INSERT INTO stock_movements (shop_id, product_id, user_id, type_mouvement, quantite, stock_avant, stock_apres, motif)
-                         VALUES (:shop_id, :product_id, :user_id, :type_mouvement, :quantite, 0, :stock_apres, :motif)'
-                    );
-                    $movement->execute([
-                        'shop_id' => $shopId,
-                        'product_id' => $productId,
-                        'user_id' => $userId,
-                        'type_mouvement' => 'entree',
-                        'quantite' => $stock,
-                        'stock_apres' => $stock,
-                        'motif' => 'Stock initial à la création du produit',
-                    ]);
-                }
-            });
+            if ($stock > 0) {
+                $this->insertInitialStockMovement($productId, $stock);
+            }
 
-            $this->flashSuccess('Produit enregistré avec succès.');
+            $this->flashSuccess('Produit créé avec succès.');
             $this->redirect('/products');
         } catch (Throwable $exception) {
             $this->flashError('Impossible d’enregistrer le produit: ' . $exception->getMessage());
@@ -94,11 +58,138 @@ class ProductController extends AppController
         }
     }
 
-    private function nullableString(mixed $value): ?string
+    public function show(array $params = []): void
     {
-        $value = trim((string) $value);
+        $this->render('products/show', [
+            'pageTitle' => 'Détail produit',
+            'activeMenu' => 'products',
+            'product' => $this->findProductFromParams($params),
+        ]);
+    }
 
-        return $value === '' ? null : $value;
+    public function edit(array $params = []): void
+    {
+        $this->render('products/edit', [
+            'pageTitle' => 'Modifier le produit',
+            'activeMenu' => 'products',
+            'product' => $this->findProductFromParams($params),
+        ]);
+    }
+
+    public function update(array $params = []): void
+    {
+        $id = $this->productIdFromParams($params);
+        $data = $this->productPayload(allowInitialStock: false);
+        $validator = $this->validateProduct($data, allowInitialStock: false);
+
+        if ($validator->fails()) {
+            $this->flashError($this->firstError($validator->errors()));
+            $this->redirect('/products/' . $id . '/edit');
+        }
+
+        if (!$this->products->updateByShop($id, $this->currentShopId(), $data, $this->currentUserId())) {
+            $this->abort(404, 'Produit introuvable pour cette boutique.');
+        }
+
+        $this->flashSuccess('Produit mis à jour avec succès.');
+        $this->redirect('/products');
+    }
+
+    public function destroy(array $params = []): void
+    {
+        if (!$this->products->deleteByShop($this->productIdFromParams($params), $this->currentShopId())) {
+            $this->abort(404, 'Produit introuvable pour cette boutique.');
+        }
+
+        $this->flashSuccess('Produit désactivé avec succès.');
+        $this->redirect('/products');
+    }
+
+    private function validateProduct(array $data, bool $allowInitialStock): Validator
+    {
+        $validator = Validator::make($data)
+            ->required('nom', 'Nom du produit')
+            ->maxLength('nom', 190, 'Nom du produit')
+            ->maxLength('code_barre', 80, 'Code-barres')
+            ->maxLength('ref', 80, 'Référence')
+            ->numeric('prix_achat', 'Prix d’achat')
+            ->numeric('prix_vente', 'Prix de vente')
+            ->positiveOrZero('prix_achat', 'Prix d’achat')
+            ->positiveOrZero('prix_vente', 'Prix de vente')
+            ->integerPositiveOrZero('alerte_stock_min', 'Alerte stock minimum');
+
+        if ($allowInitialStock) {
+            $validator->integerPositiveOrZero('quantite_stock', 'Stock initial');
+        }
+
+        return $validator;
+    }
+
+    private function productPayload(bool $allowInitialStock): array
+    {
+        $payload = [
+            'code_barre' => $_POST['code_barre'] ?? null,
+            'ref' => $_POST['ref'] ?? null,
+            'nom' => $_POST['nom'] ?? '',
+            'description' => $_POST['description'] ?? null,
+            'prix_achat' => $_POST['prix_achat'] ?? 0,
+            'prix_vente' => $_POST['prix_vente'] ?? 0,
+            'alerte_stock_min' => $_POST['alerte_stock_min'] ?? 0,
+            'actif' => $_POST['actif'] ?? '1',
+        ];
+
+        if ($allowInitialStock) {
+            $payload['quantite_stock'] = $_POST['quantite_stock'] ?? 0;
+        }
+
+        return $payload;
+    }
+
+    private function findProductFromParams(array $params): array
+    {
+        $product = $this->products->findByShop($this->productIdFromParams($params), $this->currentShopId());
+
+        if ($product === null) {
+            $this->abort(404, 'Produit introuvable pour cette boutique.');
+        }
+
+        return $product;
+    }
+
+    private function productIdFromParams(array $params): int
+    {
+        $id = (int) ($params['id'] ?? $_POST['id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->abort(404, 'Produit introuvable.');
+        }
+
+        return $id;
+    }
+
+    private function insertInitialStockMovement(int $productId, int $stock): void
+    {
+        $statement = Database::connection()->prepare(
+            'INSERT INTO stock_movements (shop_id, product_id, user_id, type_mouvement, quantite, stock_avant, stock_apres, motif)
+             VALUES (:shop_id, :product_id, :user_id, :type_mouvement, :quantite, 0, :stock_apres, :motif)'
+        );
+        $statement->execute([
+            'shop_id' => $this->currentShopId(),
+            'product_id' => $productId,
+            'user_id' => $this->currentUserId(),
+            'type_mouvement' => 'entree',
+            'quantite' => $stock,
+            'stock_apres' => $stock,
+            'motif' => 'Stock initial à la création du produit',
+        ]);
+    }
+
+    private function firstError(array $errors): string
+    {
+        foreach ($errors as $messages) {
+            return (string) ($messages[0] ?? 'Données invalides.');
+        }
+
+        return 'Données invalides.';
     }
 }
-

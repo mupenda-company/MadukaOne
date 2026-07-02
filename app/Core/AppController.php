@@ -58,6 +58,13 @@ abstract class AppController
         exit;
     }
 
+    protected function abort(int $statusCode, string $message): never
+    {
+        http_response_code($statusCode);
+        echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+        exit;
+    }
+
     protected function redirect(string $path): never
     {
         $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');

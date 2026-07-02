@@ -3,152 +3,165 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/AppController.php';
+require_once dirname(__DIR__) . '/Core/Validator.php';
+require_once dirname(__DIR__) . '/Models/Supply.php';
 
 class SupplyController extends AppController
 {
+    private Supply $supplies;
+
+    public function __construct()
+    {
+        $this->supplies = new Supply();
+    }
+
     public function index(array $params = []): void
     {
-        $this->create($params);
+        $supplies = $this->supplies->allByShop($this->currentShopId());
+
+        if (trim((string) file_get_contents(dirname(__DIR__) . '/Views/supplies/index.php')) === '') {
+            $this->create($params);
+            return;
+        }
+
+        $this->render('supplies/index', [
+            'pageTitle' => 'Approvisionnements',
+            'activeMenu' => 'supplies',
+            'supplies' => $supplies,
+        ]);
     }
 
     public function create(array $params = []): void
     {
         $shopId = $this->currentShopId();
-        $suppliers = $this->suppliers($shopId);
-        $products = $this->products($shopId);
 
         $this->render('supplies/create', [
             'pageTitle' => 'Nouvel arrivage',
             'activeMenu' => 'supplies',
-            'suppliers' => $suppliers,
-            'products' => $products,
+            'suppliers' => $this->suppliers($shopId),
+            'products' => $this->products($shopId),
         ]);
     }
 
     public function store(array $params = []): void
     {
-        $shopId = $this->currentShopId();
-        $userId = $this->currentUserId();
-        $supplierId = (int) ($_POST['supplier_id'] ?? 0);
-        $number = trim((string) ($_POST['numero_arrivage'] ?? ''));
-        $date = trim((string) ($_POST['date_approvisionnement'] ?? ''));
-        $productIds = $_POST['product_id'] ?? [];
-        $quantities = $_POST['quantite'] ?? [];
-        $prices = $_POST['prix_achat_facture'] ?? [];
+        $data = $this->payload();
+        $errors = $this->validateArrival($data);
 
-        if ($supplierId <= 0 || $number === '' || !is_array($productIds)) {
-            $this->flashError('Fournisseur, numéro d’arrivage et articles sont obligatoires.');
-            $this->redirect('/supplies/create');
-        }
-
-        $lines = [];
-        foreach ($productIds as $index => $productId) {
-            $quantity = max(0, (int) ($quantities[$index] ?? 0));
-            $price = max(0, (float) ($prices[$index] ?? 0));
-
-            if ((int) $productId > 0 && $quantity > 0) {
-                $lines[] = [
-                    'product_id' => (int) $productId,
-                    'quantity' => $quantity,
-                    'price' => $price,
-                    'total' => $quantity * $price,
-                ];
-            }
-        }
-
-        if ($lines === []) {
-            $this->flashError('Ajoutez au moins une ligne valide.');
+        if ($errors !== []) {
+            $this->flashError($this->firstError($errors));
             $this->redirect('/supplies/create');
         }
 
         try {
-            $db = Database::getInstance();
-            $db->transaction(function (PDO $pdo, Database $database) use ($shopId, $userId, $supplierId, $number, $date, $lines): void {
-                $total = array_sum(array_column($lines, 'total'));
-                $supply = $pdo->prepare(
-                    'INSERT INTO supplies (shop_id, supplier_id, user_id, numero_arrivage, date_approvisionnement, total_facture, statut)
-                     VALUES (:shop_id, :supplier_id, :user_id, :numero_arrivage, :date_approvisionnement, :total_facture, :statut)'
-                );
-                $supply->execute([
-                    'shop_id' => $shopId,
-                    'supplier_id' => $supplierId,
-                    'user_id' => $userId,
-                    'numero_arrivage' => $number,
-                    'date_approvisionnement' => $date !== '' ? str_replace('T', ' ', $date) : date('Y-m-d H:i:s'),
-                    'total_facture' => $total,
-                    'statut' => 'reçu',
-                ]);
-                $supplyId = (int) $pdo->lastInsertId();
-
-                $detail = $pdo->prepare(
-                    'INSERT INTO supply_details (supply_id, product_id, quantite, prix_achat_facture, total_ligne)
-                     VALUES (:supply_id, :product_id, :quantite, :prix_achat_facture, :total_ligne)'
-                );
-                $movement = $pdo->prepare(
-                    'INSERT INTO stock_movements (shop_id, product_id, user_id, supply_id, type_mouvement, quantite, stock_avant, stock_apres, motif)
-                     VALUES (:shop_id, :product_id, :user_id, :supply_id, :type_mouvement, :quantite, :stock_avant, :stock_apres, :motif)'
-                );
-                $selectProduct = $pdo->prepare('SELECT id, quantite_stock FROM products WHERE id = :id AND shop_id = :shop_id FOR UPDATE');
-                $updateProduct = $pdo->prepare(
-                    'UPDATE products
-                     SET quantite_stock = :stock, prix_achat = :prix_achat, updated_by = :updated_by
-                     WHERE id = :id AND shop_id = :shop_id'
-                );
-
-                $database->enableStockUpdate();
-
-                foreach ($lines as $line) {
-                    $selectProduct->execute(['id' => $line['product_id'], 'shop_id' => $shopId]);
-                    $product = $selectProduct->fetch();
-
-                    if (!is_array($product)) {
-                        throw new RuntimeException('Produit introuvable dans la boutique active.');
-                    }
-
-                    $before = (int) $product['quantite_stock'];
-                    $after = $before + $line['quantity'];
-
-                    $detail->execute([
-                        'supply_id' => $supplyId,
-                        'product_id' => $line['product_id'],
-                        'quantite' => $line['quantity'],
-                        'prix_achat_facture' => $line['price'],
-                        'total_ligne' => $line['total'],
-                    ]);
-                    $updateProduct->execute([
-                        'stock' => $after,
-                        'prix_achat' => $line['price'],
-                        'updated_by' => $userId,
-                        'id' => $line['product_id'],
-                        'shop_id' => $shopId,
-                    ]);
-                    $movement->execute([
-                        'shop_id' => $shopId,
-                        'product_id' => $line['product_id'],
-                        'user_id' => $userId,
-                        'supply_id' => $supplyId,
-                        'type_mouvement' => 'entree',
-                        'quantite' => $line['quantity'],
-                        'stock_avant' => $before,
-                        'stock_apres' => $after,
-                        'motif' => 'Arrivage fournisseur ' . $number,
-                    ]);
-                }
-            });
-
-            $this->flashSuccess('Arrivage enregistré et stock actualisé.');
-            $this->redirect('/supplies/create');
+            $supplyId = $this->supplies->createArrival($data, $this->currentShopId(), $this->currentUserId());
+            $this->flashSuccess('Arrivage validé avec succès.');
+            $this->redirect('/supplies/' . $supplyId);
         } catch (Throwable $exception) {
-            $this->flashError('Impossible d’enregistrer l’arrivage: ' . $exception->getMessage());
+            $this->flashError('Impossible de valider l’arrivage: ' . $exception->getMessage());
             $this->redirect('/supplies/create');
         }
     }
 
+    public function show(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->abort(404, 'Arrivage introuvable.');
+        }
+
+        $supply = $this->supplies->findByShop($id, $this->currentShopId());
+
+        if ($supply === null) {
+            $this->abort(404, 'Arrivage introuvable pour cette boutique.');
+        }
+
+        if (trim((string) file_get_contents(dirname(__DIR__) . '/Views/supplies/show.php')) === '') {
+            $this->flashSuccess('Arrivage validé avec succès.');
+            $this->redirect('/supplies/create');
+        }
+
+        $this->render('supplies/show', [
+            'pageTitle' => 'Détail arrivage',
+            'activeMenu' => 'supplies',
+            'supply' => $supply,
+        ]);
+    }
+
+    private function payload(): array
+    {
+        return [
+            'supplier_id' => $_POST['supplier_id'] ?? null,
+            'numero_arrivage' => $_POST['numero_arrivage'] ?? '',
+            'date_approvisionnement' => $this->dateTimeValue($_POST['date_approvisionnement'] ?? null),
+            'items' => $this->itemsPayload($_POST),
+        ];
+    }
+
+    private function itemsPayload(array $post): array
+    {
+        if (isset($post['items']) && is_array($post['items'])) {
+            return array_values(array_filter($post['items'], 'is_array'));
+        }
+
+        $productIds = is_array($post['product_id'] ?? null) ? $post['product_id'] : [];
+        $quantities = is_array($post['quantite'] ?? null) ? $post['quantite'] : [];
+        $prices = is_array($post['prix_achat_facture'] ?? null) ? $post['prix_achat_facture'] : [];
+        $items = [];
+
+        foreach ($productIds as $index => $productId) {
+            $items[] = [
+                'product_id' => $productId,
+                'quantite' => $quantities[$index] ?? null,
+                'prix_achat_facture' => $prices[$index] ?? null,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function validateArrival(array $data): array
+    {
+        $validator = Validator::make($data)
+            ->required('supplier_id', 'Fournisseur')
+            ->integerPositiveOrZero('supplier_id', 'Fournisseur')
+            ->required('numero_arrivage', 'Numéro d’arrivage')
+            ->maxLength('numero_arrivage', 50, 'Numéro d’arrivage');
+
+        $errors = $validator->errors();
+
+        if ((int) ($data['supplier_id'] ?? 0) <= 0) {
+            $errors['supplier_id'][] = 'Fournisseur invalide.';
+        }
+
+        if ($data['items'] === []) {
+            $errors['items'][] = 'Ajoutez au moins un produit à l’arrivage.';
+            return $errors;
+        }
+
+        foreach ($data['items'] as $index => $item) {
+            $line = $index + 1;
+
+            if ((int) ($item['product_id'] ?? 0) <= 0) {
+                $errors["items.{$index}.product_id"][] = "Produit invalide à la ligne {$line}.";
+            }
+
+            if ((int) ($item['quantite'] ?? 0) <= 0) {
+                $errors["items.{$index}.quantite"][] = "Quantité invalide à la ligne {$line}.";
+            }
+
+            if (!is_numeric($item['prix_achat_facture'] ?? null) || (float) $item['prix_achat_facture'] < 0) {
+                $errors["items.{$index}.prix_achat_facture"][] = "Prix d’achat invalide à la ligne {$line}.";
+            }
+        }
+
+        return $errors;
+    }
+
     private function suppliers(int $shopId): array
     {
-        $statement = Database::connection()->prepare(
-            'SELECT id, nom FROM suppliers WHERE shop_id = :shop_id ORDER BY nom ASC'
-        );
+        $statement = Database::connection()->prepare('SELECT id, nom FROM suppliers WHERE shop_id = :shop_id ORDER BY nom ASC');
         $statement->execute(['shop_id' => $shopId]);
 
         return $statement->fetchAll();
@@ -163,5 +176,20 @@ class SupplyController extends AppController
 
         return $statement->fetchAll();
     }
-}
 
+    private function dateTimeValue(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value === '' ? null : str_replace('T', ' ', $value);
+    }
+
+    private function firstError(array $errors): string
+    {
+        foreach ($errors as $messages) {
+            return (string) ($messages[0] ?? 'Données invalides.');
+        }
+
+        return 'Données invalides.';
+    }
+}

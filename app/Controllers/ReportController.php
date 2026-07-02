@@ -46,6 +46,7 @@ class ReportController extends AppController
     {
         $this->json([
             'ok' => true,
+            'success' => true,
             'message' => 'Déclencheur de sauvegarde prêt. Brancher ici le service de backup.',
             'requested_at' => date(DATE_ATOM),
         ]);
@@ -170,4 +171,3 @@ class ReportController extends AppController
         return number_format($value, 2, ',', ' ') . ' USD';
     }
 }
-

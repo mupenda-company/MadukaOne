@@ -3,11 +3,21 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/Database.php';
+require_once dirname(__DIR__) . '/Models/User.php';
 
 final class AuthController
 {
+    private User $users;
+
+    public function __construct()
+    {
+        $this->users = new User();
+    }
+
     public function login(array $params = []): void
     {
+        $this->sendNoStoreHeaders();
+
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
             $view = dirname(__DIR__) . '/Views/auth/login.php';
 
@@ -33,7 +43,7 @@ final class AuthController
         if (
             $user === null
             || empty($user['password_hash'])
-            || !password_verify($password, (string) $user['password_hash'])
+            || !$this->users->verifyPassword($user, $password)
         ) {
             $this->flash('Identifiants incorrects.');
             $this->redirect('/login');
@@ -80,6 +90,7 @@ final class AuthController
     public function logout(array $params = []): void
     {
         $this->startSession();
+        $this->sendNoStoreHeaders();
         $_SESSION = [];
 
         if (ini_get('session.use_cookies')) {
@@ -185,39 +196,12 @@ final class AuthController
 
     private function findUserByEmail(string $email): ?array
     {
-        $statement = Database::connection()->prepare(
-            'SELECT users.*, roles.nom AS role_name
-             FROM users
-             LEFT JOIN roles ON roles.id = users.role_id
-             WHERE users.email = :email AND users.actif = 1
-             LIMIT 1'
-        );
-        $statement->execute(['email' => $email]);
-        $user = $statement->fetch();
-
-        return is_array($user) ? $user : null;
+        return $this->users->findByEmail($email);
     }
 
     private function findOAuthUser(string $idColumn, string $providerId, string $email): ?array
     {
-        if (!in_array($idColumn, ['google_id', 'apple_id'], true)) {
-            throw new InvalidArgumentException('OAuth column not allowed.');
-        }
-
-        $statement = Database::connection()->prepare(
-            "SELECT users.*, roles.nom AS role_name
-             FROM users
-             LEFT JOIN roles ON roles.id = users.role_id
-             WHERE users.actif = 1 AND (users.{$idColumn} = :provider_id OR users.email = :email)
-             LIMIT 1"
-        );
-        $statement->execute([
-            'provider_id' => $providerId,
-            'email' => $email,
-        ]);
-        $user = $statement->fetch();
-
-        return is_array($user) ? $user : null;
+        return $this->users->findOAuthUser($idColumn, $providerId, $email);
     }
 
     private function startAuthenticatedSession(array $user): void
@@ -225,28 +209,12 @@ final class AuthController
         $this->startSession();
         session_regenerate_id(true);
 
-        $_SESSION['user'] = [
-            'id' => (int) $user['id'],
-            'nom' => (string) $user['nom'],
-            'email' => (string) $user['email'],
-            'role' => $this->resolveRole($user),
-            'role_id' => isset($user['role_id']) ? (int) $user['role_id'] : null,
-            'role_legacy' => (string) ($user['role_legacy'] ?? 'agent'),
-            'shop_id' => isset($user['shop_id']) ? (int) $user['shop_id'] : null,
-            'auth_provider' => (string) ($user['auth_provider'] ?? 'local'),
-        ];
+        $_SESSION['user'] = $this->users->sessionPayload($user);
     }
 
     private function resolveRole(array $user): string
     {
-        $roleName = strtolower(trim((string) ($user['role_name'] ?? '')));
-
-        return match ($roleName) {
-            'super admin', 'super_admin', 'admin', 'administrateur' => 'admin',
-            'gerant', 'gérant', 'manager' => 'gerant',
-            'caissier', 'agent', 'vendeur' => 'agent',
-            default => strtolower((string) ($user['role_legacy'] ?? 'agent')),
-        };
+        return $this->users->resolveRole($user);
     }
 
     private function redirectAfterLogin(array $user): never
@@ -257,26 +225,13 @@ final class AuthController
 
     private function touchLastLogin(int $userId): void
     {
-        $statement = Database::connection()->prepare('UPDATE users SET derniere_connexion = NOW() WHERE id = :id');
-        $statement->execute(['id' => $userId]);
+        $this->users->touchLastLogin($userId);
     }
 
     private function linkProviderIfNeeded(int $userId, string $provider, string $idColumn, string $providerId, array $claims): void
     {
-        $statement = Database::connection()->prepare(
-            "UPDATE users
-             SET {$idColumn} = COALESCE({$idColumn}, :provider_id),
-                 auth_provider = :provider,
-                 email_verified_at = CASE WHEN email_verified_at IS NULL THEN NOW() ELSE email_verified_at END,
-                 avatar_url = COALESCE(avatar_url, :avatar_url)
-             WHERE id = :id"
-        );
-        $statement->execute([
-            'provider_id' => $providerId,
-            'provider' => $provider,
-            'avatar_url' => $claims['picture'] ?? null,
-            'id' => $userId,
-        ]);
+        $avatarUrl = isset($claims['picture']) && is_string($claims['picture']) ? $claims['picture'] : null;
+        $this->users->linkProviderIfNeeded($userId, $provider, $idColumn, $providerId, $avatarUrl);
     }
 
     private function exchangeCodeForIdToken(
@@ -523,6 +478,14 @@ final class AuthController
                 'use_strict_mode' => true,
             ]);
         }
+    }
+
+    private function sendNoStoreHeaders(): void
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Cache-Control: post-check=0, pre-check=0', false);
+        header('Pragma: no-cache');
+        header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
     }
 
     private function redirect(string $path): never
