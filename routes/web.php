@@ -21,6 +21,10 @@ return [
     ['GET', '/products/{id}/edit', 'ProductController@edit'],
     ['POST', '/products/{id}/update', 'ProductController@update'],
     ['POST', '/products/{id}/delete', 'ProductController@destroy'],
+    ['GET', '/supplies', 'SupplyController@index'],
+    ['GET', '/supplies/create', 'SupplyController@create'],
+    ['POST', '/supplies', 'SupplyController@store'],
+    ['GET', '/supplies/{id}', 'SupplyController@show'],
     ['GET', '/rapports/ventes', 'ReportController@sales'],
     ['GET', '/rapports/stock', 'ReportController@stockMovements'],
 ];
