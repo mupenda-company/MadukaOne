@@ -227,5 +227,8 @@ $url = static function (string $path, array $query = []) use ($basePath): string
             }
         });
     </script>
+    <?php foreach ((array) ($pageScripts ?? []) as $script): ?>
+        <script src="<?= $asset((string) $script) ?>?v=<?= (int) filemtime(dirname(__DIR__, 3) . '/public/' . ltrim((string) $script, '/')) ?>" defer></script>
+    <?php endforeach; ?>
 </body>
 </html>

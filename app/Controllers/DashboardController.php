@@ -2,49 +2,48 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/Core/Database.php';
+require_once dirname(__DIR__) . '/Core/AppController.php';
 
-class DashboardController
+class DashboardController extends AppController
 {
     public function index(array $params = []): void
     {
-        $this->startSession();
-
         $shops = $this->shops();
         $currentUser = $this->currentUser();
         $activeShop = $this->activeShop($shops, $currentUser);
+        $summary = $this->summary((int) $activeShop['id']);
 
         $stats = [
             [
-                'label' => 'Chiffre d affaires',
-                'value' => '0,00 USD',
+                'label' => 'Chiffre d’affaires',
+                'value' => $this->money((float) $summary['revenue']),
                 'detail' => 'Ventes validées de la boutique',
                 'tone' => 'teal',
             ],
             [
                 'label' => 'Marge brute',
-                'value' => '0,00 USD',
-                'detail' => 'Ventes moins coût d achat',
+                'value' => $this->money((float) $summary['gross_margin']),
+                'detail' => 'Ventes moins coût d’achat',
                 'tone' => 'blue',
             ],
             [
                 'label' => 'Dépenses courantes',
-                'value' => '0,00 USD',
+                'value' => $this->money((float) $summary['expenses']),
                 'detail' => 'Charges opérationnelles',
                 'tone' => 'amber',
             ],
             [
                 'label' => 'Bénéfice net',
-                'value' => '0,00 USD',
+                'value' => $this->money((float) $summary['net_profit']),
                 'detail' => 'Marge brute moins dépenses',
                 'tone' => 'slate',
             ],
         ];
 
         $recentSignals = [
-            ['label' => 'Alertes stock', 'value' => '0', 'hint' => 'Produits sous le seuil minimum'],
-            ['label' => 'Ventes du jour', 'value' => '0', 'hint' => 'Tickets validés aujourd hui'],
-            ['label' => 'Crédits clients', 'value' => '0,00 USD', 'hint' => 'Montant restant à encaisser'],
+            ['label' => 'Alertes stock', 'value' => (string) $summary['stock_alerts'], 'hint' => 'Produits sous le seuil minimum'],
+            ['label' => 'Ventes du jour', 'value' => (string) $summary['today_sales'], 'hint' => 'Tickets validés aujourd’hui'],
+            ['label' => 'Crédits clients', 'value' => $this->money((float) $summary['customer_debt']), 'hint' => 'Montant restant à encaisser'],
         ];
 
         $this->render('dashboard/index', [
@@ -59,107 +58,50 @@ class DashboardController
         ]);
     }
 
-    private function render(string $view, array $data = []): void
+    private function summary(int $shopId): array
     {
-        $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
-        $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
+        $sales = Database::connection()->prepare(
+            "SELECT
+                COALESCE(SUM(sale_details.total_ligne), 0) AS revenue,
+                COALESCE(SUM(sale_details.quantite * sale_details.prix_achat_unitaire), 0) AS cost
+             FROM sale_details
+             INNER JOIN sales ON sales.id = sale_details.sale_id
+             WHERE sales.shop_id = :shop_id AND sales.statut = 'validee'"
+        );
+        $sales->execute(['shop_id' => $shopId]);
+        $salesSummary = $sales->fetch() ?: ['revenue' => 0, 'cost' => 0];
 
-        $asset = static function (string $path) use ($basePath): string {
-            return htmlspecialchars($basePath . '/' . ltrim($path, '/'), ENT_QUOTES, 'UTF-8');
-        };
+        $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id');
+        $expenses->execute(['shop_id' => $shopId]);
+        $expenseTotal = (float) $expenses->fetchColumn();
 
-        $url = static function (string $path, array $query = []) use ($basePath): string {
-            $href = $basePath . '/' . ltrim($path, '/');
-
-            if ($path === '/') {
-                $href = $basePath === '' ? '/' : $basePath . '/';
-            }
-
-            if ($query !== []) {
-                $href .= (str_contains($href, '?') ? '&' : '?') . http_build_query($query);
-            }
-
-            return htmlspecialchars($href, ENT_QUOTES, 'UTF-8');
-        };
-
-        extract($data, EXTR_SKIP);
-
-        ob_start();
-        require dirname(__DIR__) . '/Views/' . $view . '.php';
-        $content = (string) ob_get_clean();
-
-        require dirname(__DIR__) . '/Views/layouts/app.php';
-    }
-
-    private function shops(): array
-    {
-        try {
-            $statement = Database::connection()->query(
-                'SELECT id, nom, adresse, telephone, actif FROM shops WHERE actif = 1 ORDER BY nom ASC'
-            );
-            $shops = $statement->fetchAll();
-
-            if (is_array($shops) && $shops !== []) {
-                return $shops;
-            }
-        } catch (Throwable) {
-        }
+        $signals = Database::connection()->prepare(
+            "SELECT
+                (SELECT COUNT(*) FROM products WHERE shop_id = :shop_products AND actif = 1 AND quantite_stock <= alerte_stock_min) AS stock_alerts,
+                (SELECT COUNT(*) FROM sales WHERE shop_id = :shop_sales_today AND statut = 'validee' AND DATE(date_vente) = CURDATE()) AS today_sales,
+                (SELECT COALESCE(SUM(montant_dette), 0) FROM sales WHERE shop_id = :shop_sales_debt AND statut = 'validee') AS customer_debt"
+        );
+        $signals->execute([
+            'shop_products' => $shopId,
+            'shop_sales_today' => $shopId,
+            'shop_sales_debt' => $shopId,
+        ]);
+        $signalSummary = $signals->fetch() ?: ['stock_alerts' => 0, 'today_sales' => 0, 'customer_debt' => 0];
+        $grossMargin = (float) $salesSummary['revenue'] - (float) $salesSummary['cost'];
 
         return [
-            [
-                'id' => 1,
-                'nom' => 'Boutique Pilote - Centre Ville',
-                'adresse' => 'Av. Principale No 10',
-                'telephone' => '+243000000000',
-                'actif' => 1,
-            ],
+            'revenue' => (float) $salesSummary['revenue'],
+            'gross_margin' => $grossMargin,
+            'expenses' => $expenseTotal,
+            'net_profit' => $grossMargin - $expenseTotal,
+            'stock_alerts' => (int) $signalSummary['stock_alerts'],
+            'today_sales' => (int) $signalSummary['today_sales'],
+            'customer_debt' => (float) $signalSummary['customer_debt'],
         ];
     }
 
-    private function currentUser(): array
+    private function money(float $value): string
     {
-        $user = $_SESSION['user'] ?? null;
-
-        if (is_array($user)) {
-            return $user;
-        }
-
-        return [
-            'id' => null,
-            'nom' => 'Administrateur',
-            'email' => 'admin@example.com',
-            'role' => 'admin',
-            'shop_id' => 1,
-        ];
-    }
-
-    private function activeShop(array $shops, array $currentUser): array
-    {
-        $requestedShopId = filter_input(INPUT_GET, 'shop_id', FILTER_VALIDATE_INT);
-        $sessionShopId = isset($_SESSION['current_shop_id']) ? (int) $_SESSION['current_shop_id'] : null;
-        $preferredShopId = $requestedShopId ?: $sessionShopId ?: (int) ($currentUser['shop_id'] ?? 0);
-
-        foreach ($shops as $shop) {
-            if ((int) $shop['id'] === $preferredShopId) {
-                $_SESSION['current_shop_id'] = (int) $shop['id'];
-                return $shop;
-            }
-        }
-
-        $_SESSION['current_shop_id'] = (int) $shops[0]['id'];
-
-        return $shops[0];
-    }
-
-    private function startSession(): void
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start([
-                'cookie_httponly' => true,
-                'cookie_samesite' => 'Lax',
-                'use_strict_mode' => true,
-            ]);
-        }
+        return number_format($value, 2, ',', ' ') . ' USD';
     }
 }
-
