@@ -56,14 +56,22 @@ CREATE TABLE users (
   nom VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL,
   telephone VARCHAR(30) NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NULL,
+  auth_provider ENUM('local', 'google', 'apple') NOT NULL DEFAULT 'local',
+  google_id VARCHAR(191) NULL,
+  apple_id VARCHAR(191) NULL,
+  email_verified_at DATETIME NULL,
+  avatar_url VARCHAR(500) NULL,
   role_legacy ENUM('admin', 'agent') NOT NULL DEFAULT 'agent', -- Rétrocompatibilité
   actif TINYINT(1) NOT NULL DEFAULT 1,
   derniere_connexion DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
+  UNIQUE KEY uq_users_google_id (google_id),
+  UNIQUE KEY uq_users_apple_id (apple_id),
   KEY idx_users_actif (actif),
+  KEY idx_users_auth_provider (auth_provider),
   CONSTRAINT fk_users_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
