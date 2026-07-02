@@ -29,6 +29,10 @@ return [
     ['GET', '/expenses/create', 'ExpenseController@create'],
     ['POST', '/expenses', 'ExpenseController@store'],
     ['GET', '/expenses/{id}', 'ExpenseController@show'],
+    ['GET', '/reports/financials', 'ReportController@financials'],
+    ['GET', '/reports/sales', 'ReportController@sales'],
+    ['GET', '/reports/stock', 'ReportController@stockMovements'],
+    ['GET', '/rapports/finances', 'ReportController@financials'],
     ['GET', '/rapports/ventes', 'ReportController@sales'],
     ['GET', '/rapports/stock', 'ReportController@stockMovements'],
 ];
