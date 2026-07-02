@@ -45,7 +45,7 @@ final class Router
     {
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
-        $path = $this->normalizePath((string) parse_url($uri, PHP_URL_PATH));
+        $path = $this->pathWithoutBase((string) parse_url($uri, PHP_URL_PATH));
 
         if (!isset($this->routes[$method])) {
             $this->abort(405, 'Method Not Allowed');
@@ -128,6 +128,23 @@ final class Router
         $path = '/' . trim($path, '/');
 
         return $path === '/' ? '/' : rtrim($path, '/');
+    }
+
+    private function pathWithoutBase(string $path): string
+    {
+        $path = $this->normalizePath($path);
+        $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+        $basePath = $this->normalizePath(dirname($scriptName));
+
+        if ($basePath !== '/' && $path === $basePath) {
+            return '/';
+        }
+
+        if ($basePath !== '/' && str_starts_with($path, $basePath . '/')) {
+            return $this->normalizePath(substr($path, strlen($basePath)));
+        }
+
+        return $path;
     }
 
     private function compilePattern(string $path): string

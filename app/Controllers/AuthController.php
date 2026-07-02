@@ -146,7 +146,7 @@ final class AuthController
             }
 
             if ($idToken === '') {
-                throw new RuntimeException('Aucun jeton OAuth recu.');
+                throw new RuntimeException('Aucun jeton OAuth reçu.');
             }
 
             $claims = $this->verifyIdToken(
@@ -166,7 +166,7 @@ final class AuthController
             $user = $this->findOAuthUser($idColumn, $providerId, $email);
 
             if ($user === null) {
-                $this->flash('Compte introuvable. Demandez a l administrateur de lier votre compte ' . ucfirst($provider) . '.');
+                $this->flash('Compte introuvable. Demandez à l administrateur de lier votre compte ' . ucfirst($provider) . '.');
                 $this->redirect('/login');
             }
 
@@ -527,6 +527,12 @@ final class AuthController
 
     private function redirect(string $path): never
     {
+        if (!str_starts_with($path, 'http://') && !str_starts_with($path, 'https://') && !str_starts_with($path, '//')) {
+            $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+            $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
+            $path = $basePath . '/' . ltrim($path, '/');
+        }
+
         header('Location: ' . $path, true, 302);
         exit;
     }
