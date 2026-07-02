@@ -92,12 +92,18 @@ final class Middleware
 
     private static function denyAgent(): never
     {
-        $_SESSION['flash_error'] = 'Acces refuse: cette zone est reservee a l administrateur.';
+        $_SESSION['flash_error'] = 'Accès refusé : cette zone est réservée à l administrateur.';
         self::redirect('/pos', 403);
     }
 
     private static function redirect(string $path, int $statusCode = 302): never
     {
+        if (!str_starts_with($path, 'http://') && !str_starts_with($path, 'https://') && !str_starts_with($path, '//')) {
+            $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+            $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
+            $path = $basePath . '/' . ltrim($path, '/');
+        }
+
         http_response_code($statusCode);
         header('Location: ' . $path, true, $statusCode);
         exit;
