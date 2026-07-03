@@ -3,9 +3,37 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/Database.php';
+require_once dirname(__DIR__) . '/Models/User.php';
 
 class UserController
 {
+    private User $users;
+
+    public function __construct()
+    {
+        $this->users = new User();
+    }
+
+    public function index(array $params = []): void
+    {
+        $this->startSession();
+
+        $currentUser = $this->currentUser();
+        $shops = $this->shops();
+        $activeShop = $this->activeShop($shops, $currentUser);
+        $users = $this->users->allForSuperAdmin(false);
+
+        $this->render('users/index', [
+            'pageTitle' => 'Utilisateurs',
+            'currentUser' => $currentUser,
+            'shops' => $shops,
+            'activeShop' => $activeShop,
+            'activeMenu' => 'users',
+            'users' => $users,
+            'userStats' => $this->userStats($users),
+        ]);
+    }
+
     public function profile(array $params = []): void
     {
         $this->startSession();
@@ -114,6 +142,38 @@ class UserController
         $_SESSION['current_shop_id'] = (int) $shops[0]['id'];
 
         return $shops[0];
+    }
+
+    private function userStats(array $users): array
+    {
+        $stats = [
+            'total' => count($users),
+            'active' => 0,
+            'inactive' => 0,
+            'oauth' => 0,
+            'shops' => [],
+        ];
+
+        foreach ($users as $user) {
+            if ((int) ($user['actif'] ?? 0) === 1) {
+                $stats['active']++;
+            } else {
+                $stats['inactive']++;
+            }
+
+            if (in_array((string) ($user['auth_provider'] ?? 'local'), ['google', 'apple'], true)) {
+                $stats['oauth']++;
+            }
+
+            $shopName = trim((string) ($user['shop_name'] ?? ''));
+            if ($shopName !== '') {
+                $stats['shops'][$shopName] = true;
+            }
+        }
+
+        $stats['shops'] = count($stats['shops']);
+
+        return $stats;
     }
 
     private function startSession(): void

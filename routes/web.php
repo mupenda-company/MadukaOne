@@ -16,6 +16,7 @@ return [
 
     ['GET', '/profil', 'UserController@profile'],
     ['GET', '/profile', 'UserController@profile'],
+    ['GET', '/users', 'UserController@index'],
 
     ['GET', '/pos', 'PosController@index'],
     ['POST', '/pos/sale', 'PosController@store'],
