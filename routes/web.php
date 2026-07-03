@@ -17,6 +17,10 @@ return [
     ['GET', '/profil', 'UserController@profile'],
     ['GET', '/profile', 'UserController@profile'],
     ['GET', '/users', 'UserController@index'],
+    ['GET', '/roles', 'RoleController@index'],
+    ['GET', '/roles/create', 'RoleController@create'],
+    ['POST', '/roles', 'RoleController@store'],
+    ['GET', '/roles-permissions', 'RoleController@index'],
 
     ['GET', '/pos', 'PosController@index'],
     ['POST', '/pos/sale', 'PosController@store'],

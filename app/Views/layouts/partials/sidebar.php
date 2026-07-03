@@ -13,6 +13,7 @@ $navItems = [
     ['key' => 'finances', 'label' => 'Finances', 'href' => $url('/finances'), 'roles' => ['admin', 'super_admin'], 'icon' => 'finance'],
     ['key' => 'reports', 'label' => 'Rapports', 'href' => $url('/rapports/ventes'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'chart'],
     ['key' => 'users', 'label' => 'Utilisateurs', 'href' => $url('/users'), 'roles' => ['admin', 'super_admin'], 'icon' => 'shield'],
+    ['key' => 'roles', 'label' => 'Roles & permissions', 'href' => $url('/roles'), 'roles' => ['admin', 'super_admin'], 'icon' => 'key'],
 ];
 
 $icon = static function (string $name): string {
@@ -26,6 +27,7 @@ $icon = static function (string $name): string {
         'finance' => '<path d="M4 18h16M7 15V9m5 6V6m5 9v-4M5 21h14M12 3l8 4H4l8-4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'chart' => '<path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'shield' => '<path d="M12 3 5 6v5c0 4.2 2.7 8 7 10 4.3-2 7-5.8 7-10V6l-7-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+        'key' => '<path d="M15 7a4 4 0 1 0-2.7 3.8L15 13.5V16h2.5v2.5H20V16l-5-5m-6-1h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     ];
 
     return '<svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">' . ($paths[$name] ?? $paths['dashboard']) . '</svg>';
