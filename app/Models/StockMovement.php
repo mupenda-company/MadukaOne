@@ -36,8 +36,8 @@ final class StockMovement extends Model
         $quantityInput = (int) ($data['quantite'] ?? 0);
         $motif = trim((string) ($data['motif'] ?? ''));
 
-        if ($productId <= 0 || $quantityInput <= 0 || $motif === '') {
-            throw new InvalidArgumentException('Produit, quantite et motif sont obligatoires.');
+        if ($productId <= 0 || $quantityInput < 0 || $motif === '') {
+            throw new InvalidArgumentException('Produit, stock et motif sont obligatoires.');
         }
 
         $db->beginTransaction();
@@ -50,6 +50,10 @@ final class StockMovement extends Model
                 'sortie' => $stockBefore - $quantityInput,
                 default => $quantityInput,
             };
+
+            if ($type !== 'ajustement' && $quantityInput <= 0) {
+                throw new RuntimeException('La quantite doit etre superieure a zero pour une entree ou une sortie.');
+            }
 
             if ($stockAfter < 0) {
                 throw new RuntimeException('Stock insuffisant pour cette sortie.');
