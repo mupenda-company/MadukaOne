@@ -13,6 +13,8 @@ return [
     ['GET', '/auth/apple', 'AuthController@redirectToApple'],
     ['POST', '/auth/apple/callback', 'AuthController@appleCallback'],
     ['GET', '/auth/apple/callback', 'AuthController@appleCallback'],
+    ['GET', '/shops/create', 'ShopController@create'],
+    ['GET', '/boutiques/create', 'ShopController@create'],
 
     ['GET', '/profil', 'UserController@profile'],
     ['GET', '/profile', 'UserController@profile'],

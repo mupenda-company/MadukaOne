@@ -14,6 +14,7 @@ unset($_SESSION['flash_error']);
 $oldEmail = htmlspecialchars((string) ($_POST['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
 $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
+$createShopUrl = htmlspecialchars($basePath . '/shops/create', ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
 <html lang="fr">
@@ -43,7 +44,7 @@ $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
 
             <div class="relative z-10 max-w-xl">
                 <div class="mb-6 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white/85 backdrop-blur">
-                    Pilotage multi-boutiques en temps reel
+                    Pilotage multi-boutiques en temps réel
                 </div>
                 <h1 class="max-w-lg text-5xl font-semibold leading-[1.02] tracking-normal">
                     Une caisse pro, un stock clair, des ventes sous contrôle.
@@ -60,7 +61,7 @@ $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
                 </div>
                 <div class="metric-chip">
                     <p class="text-2xl font-semibold">Stock</p>
-                    <p class="mt-1 text-xs text-white/65">Mouvements traces</p>
+                    <p class="mt-1 text-xs text-white/65">Mouvements tracés</p>
                 </div>
                 <div class="metric-chip">
                     <p class="text-2xl font-semibold">ERP</p>
@@ -87,9 +88,15 @@ $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
                 </div>
 
                 <div class="auth-panel rounded-[1.25rem] border border-white/80 bg-white/90 p-5 backdrop-blur sm:p-8">
+                    <div class="mb-5 flex justify-end">
+                        <a class="btn-secondary h-10 w-full gap-2 px-4 sm:w-auto" href="<?= $createShopUrl ?>">
+                            <span>Créer une boutique</span>
+                        </a>
+                    </div>
+
                     <div class="mb-8">
                         <p class="text-sm font-semibold uppercase tracking-[.16em] text-teal-700">Connexion</p>
-                        <h2 class="mt-3 text-3xl font-semibold tracking-normal text-slate-950">Acceder a votre espace</h2>
+                        <h2 class="mt-3 text-3xl font-semibold tracking-normal text-slate-950">Accéder à votre espace</h2>
                         <p class="mt-3 text-sm leading-6 text-slate-500">
                             Utilisez votre compte professionnel pour ouvrir le tableau de bord ou la caisse.
                         </p>
