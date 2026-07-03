@@ -6,6 +6,7 @@ $isAdmin = in_array($role, ['admin', 'super_admin', 'gerant'], true);
 $navItems = [
     ['key' => 'dashboard', 'label' => 'Tableau de bord', 'href' => $url('/'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'dashboard'],
     ['key' => 'pos', 'label' => 'Caisse POS', 'href' => $url('/pos'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'pos'],
+    ['key' => 'sales', 'label' => 'Ventes', 'href' => $url('/sales'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'receipt'],
     ['key' => 'products', 'label' => 'Produits', 'href' => $url('/products'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'box'],
     ['key' => 'stock', 'label' => 'Stock', 'href' => $url('/stock/movements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'stock'],
     ['key' => 'suppliers', 'label' => 'Fournisseurs', 'href' => $url('/suppliers'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'handshake'],
@@ -21,6 +22,7 @@ $icon = static function (string $name): string {
     $paths = [
         'dashboard' => '<path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z" fill="currentColor"/>',
         'pos' => '<path d="M5 5h14v10H5V5Zm3 14h8M9 15v4m6-4v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'receipt' => '<path d="M7 3h10l2 2v16l-3-2-2 2-2-2-2 2-2-2-3 2V5l2-2Zm2 6h6M9 13h6M9 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'box' => '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 9 8-4.5M12 12 4 7.5M12 12v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
         'stock' => '<path d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
         'truck' => '<path d="M3 7h11v9H3V7Zm11 3h4l3 3v3h-7v-6ZM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',

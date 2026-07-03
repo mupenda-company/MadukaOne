@@ -13,6 +13,7 @@
         <div class="hero-action-panel">
             <p class="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Total panier</p>
             <p class="mt-2 text-3xl font-bold text-slate-950" data-pos-total>0,00 USD</p>
+            <a class="mt-4 inline-flex text-sm font-bold text-teal-700 hover:text-teal-900" href="<?= $url('/sales') ?>">Voir les ventes</a>
         </div>
     </div>
 

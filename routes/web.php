@@ -25,6 +25,8 @@ return [
     ['GET', '/roles-permissions', 'RoleController@index'],
 
     ['GET', '/pos', 'PosController@index'],
+    ['GET', '/sales', 'PosController@sales'],
+    ['GET', '/ventes', 'PosController@sales'],
     ['POST', '/pos/sale', 'PosController@store'],
     ['GET', '/caisse', 'PosController@index'],
     ['POST', '/caisse/vente', 'PosController@store'],

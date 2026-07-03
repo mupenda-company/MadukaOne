@@ -137,6 +137,60 @@ final class Sale extends Model
         }
     }
 
+    public function allByShop(int $shopId, int $limit = 500): array
+    {
+        $statement = Database::connection()->prepare(
+            'SELECT
+                sales.id,
+                sales.numero_facture,
+                sales.date_vente,
+                sales.total_montant,
+                sales.montant_recu,
+                sales.montant_dette,
+                sales.mode_paiement,
+                sales.statut,
+                customers.nom AS customer_name,
+                users.nom AS user_name,
+                COUNT(sale_details.id) AS lignes_count,
+                COALESCE(SUM(sale_details.quantite), 0) AS articles_count
+             FROM sales
+             LEFT JOIN customers ON customers.id = sales.customer_id
+             INNER JOIN users ON users.id = sales.user_id
+             LEFT JOIN sale_details ON sale_details.sale_id = sales.id
+             WHERE sales.shop_id = :shop_id
+             GROUP BY sales.id
+             ORDER BY sales.date_vente DESC, sales.id DESC
+             LIMIT ' . max(1, min(1000, $limit))
+        );
+        $statement->execute(['shop_id' => $shopId]);
+
+        return $statement->fetchAll();
+    }
+
+    public function summaryByShop(int $shopId): array
+    {
+        $statement = Database::connection()->prepare(
+            'SELECT
+                COUNT(*) AS sales_count,
+                COALESCE(SUM(CASE WHEN statut = "validee" THEN total_montant ELSE 0 END), 0) AS revenue,
+                COALESCE(SUM(CASE WHEN statut = "validee" THEN montant_recu ELSE 0 END), 0) AS received,
+                COALESCE(SUM(CASE WHEN statut = "validee" THEN montant_dette ELSE 0 END), 0) AS debt,
+                COALESCE(SUM(CASE WHEN statut = "annulee" THEN 1 ELSE 0 END), 0) AS cancelled_count
+             FROM sales
+             WHERE shop_id = :shop_id'
+        );
+        $statement->execute(['shop_id' => $shopId]);
+        $summary = $statement->fetch();
+
+        return is_array($summary) ? $summary : [
+            'sales_count' => 0,
+            'revenue' => 0,
+            'received' => 0,
+            'debt' => 0,
+            'cancelled_count' => 0,
+        ];
+    }
+
     private function normalizeItems(mixed $rawItems): array
     {
         if (!is_array($rawItems)) {

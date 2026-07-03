@@ -32,6 +32,18 @@ class PosController extends AppController
         ]);
     }
 
+    public function sales(array $params = []): void
+    {
+        $shopId = $this->currentShopId();
+
+        $this->render('pos/sales', [
+            'pageTitle' => 'Ventes',
+            'activeMenu' => 'sales',
+            'sales' => $this->sales->allByShop($shopId),
+            'salesSummary' => $this->sales->summaryByShop($shopId),
+        ]);
+    }
+
     public function store(array $params = []): void
     {
         if (!$this->isJsonRequest()) {
