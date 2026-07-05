@@ -195,4 +195,151 @@
   .btn-danger {
     @apply inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-200;
   }
+
+  @media (max-width: 1023px) {
+    .responsive-table {
+      overflow: visible;
+    }
+
+    .responsive-table table,
+    .responsive-table thead,
+    .responsive-table tbody,
+    .responsive-table tr,
+    .responsive-table th,
+    .responsive-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .responsive-table table {
+      min-width: 0;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .responsive-table thead {
+      display: none;
+    }
+
+    .responsive-table tbody {
+      display: grid;
+      gap: .75rem;
+    }
+
+    .responsive-table tr {
+      overflow: hidden;
+      border: 1px solid var(--color-slate-200);
+      border-radius: var(--radius-lg);
+      background: var(--color-white);
+    }
+
+    .responsive-table td {
+      padding: .875rem 1rem;
+      border-bottom: 1px solid var(--color-slate-100);
+    }
+
+    .responsive-table td:last-child {
+      border-bottom: 0;
+    }
+
+    .responsive-table td:not(:first-child)::before {
+      display: block;
+      margin-bottom: .25rem;
+      color: var(--color-slate-400);
+      font-size: .6875rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .responsive-table td[data-label]::before {
+      content: attr(data-label);
+    }
+
+    [data-suppliers-page] .responsive-table td:nth-child(2)::before {
+      content: "Contact";
+    }
+
+    [data-suppliers-page] .responsive-table td:nth-child(3)::before {
+      content: "Telephone";
+    }
+
+    [data-suppliers-page] .responsive-table td:nth-child(4)::before {
+      content: "Email";
+    }
+
+    [data-suppliers-page] .responsive-table td:nth-child(5)::before {
+      content: "Actions";
+    }
+
+    [data-customers-page] .responsive-table td:nth-child(2)::before {
+      content: "Telephone";
+    }
+
+    [data-customers-page] .responsive-table td:nth-child(3)::before {
+      content: "Email";
+    }
+
+    [data-customers-page] .responsive-table td:nth-child(4)::before {
+      content: "Dette";
+    }
+
+    [data-customers-page] .responsive-table td:nth-child(5)::before {
+      content: "Actions";
+    }
+
+    [data-stock-adjustments] .responsive-table td:nth-child(2)::before {
+      content: "Stock avant";
+    }
+
+    [data-stock-adjustments] .responsive-table td:nth-child(3)::before {
+      content: "Seuil alerte";
+    }
+
+    [data-stock-adjustments].is-stock-adjustment .responsive-table td:nth-child(4)::before {
+      content: "Operation";
+    }
+
+    [data-stock-adjustments].is-stock-adjustment .responsive-table td:nth-child(5)::before {
+      content: "Stock / quantite";
+    }
+
+    [data-stock-adjustments].is-stock-adjustment .responsive-table td:nth-child(6)::before {
+      content: "Validation";
+    }
+
+    [data-stock-adjustments].is-complete-inventory .responsive-table td:nth-child(4)::before {
+      content: "Stock physique";
+    }
+
+    [data-stock-adjustments].is-complete-inventory .responsive-table td:nth-child(5)::before {
+      content: "Etat";
+    }
+
+    .responsive-table td > .flex,
+    .responsive-table td > form + button,
+    .responsive-table td button,
+    .responsive-table td .btn-primary,
+    .responsive-table td .btn-secondary {
+      max-width: 100%;
+    }
+
+    .responsive-table td > .flex {
+      justify-content: flex-start !important;
+      flex-wrap: wrap !important;
+    }
+
+    .responsive-table td.text-right {
+      text-align: left !important;
+    }
+
+    [data-stock-adjustments] .responsive-table .field-control {
+      min-width: 0;
+      width: 100%;
+    }
+
+    [data-stock-adjustments] .responsive-table .btn-primary {
+      width: 100% !important;
+    }
+  }
 }

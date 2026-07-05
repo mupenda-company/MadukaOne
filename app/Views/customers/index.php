@@ -107,7 +107,7 @@ $icon = static function (string $name): string {
                 </select>
             </div>
 
-            <div class="mt-5 overflow-x-auto">
+            <div class="responsive-table mt-5 overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
                     <thead>
                         <tr class="text-xs uppercase tracking-[.14em] text-slate-400">

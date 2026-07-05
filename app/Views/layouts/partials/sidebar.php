@@ -3,19 +3,49 @@
 $role = strtolower((string) ($currentUser['role'] ?? $currentUser['role_legacy'] ?? 'agent'));
 $isAdmin = in_array($role, ['admin', 'super_admin', 'gerant'], true);
 
-$navItems = [
-    ['key' => 'dashboard', 'label' => 'Tableau de bord', 'href' => $url('/'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'dashboard'],
-    ['key' => 'pos', 'label' => 'Caisse POS', 'href' => $url('/pos'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'pos'],
-    ['key' => 'sales', 'label' => 'Ventes', 'href' => $url('/sales'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'receipt'],
-    ['key' => 'products', 'label' => 'Produits', 'href' => $url('/products'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'box'],
-    ['key' => 'stock', 'label' => 'Stock', 'href' => $url('/stock/movements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'stock'],
-    ['key' => 'suppliers', 'label' => 'Fournisseurs', 'href' => $url('/suppliers'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'handshake'],
-    ['key' => 'supplies', 'label' => 'Approvisionnements', 'href' => $url('/supplies'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'truck'],
-    ['key' => 'customers', 'label' => 'Clients', 'href' => $url('/customers'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'users'],
-    ['key' => 'finances', 'label' => 'Finances', 'href' => $url('/finances'), 'roles' => ['admin', 'super_admin'], 'icon' => 'finance'],
-    ['key' => 'reports', 'label' => 'Rapports', 'href' => $url('/rapports/ventes'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'chart'],
-    ['key' => 'users', 'label' => 'Utilisateurs', 'href' => $url('/users'), 'roles' => ['admin', 'super_admin'], 'icon' => 'shield'],
-    ['key' => 'roles', 'label' => 'Roles & permissions', 'href' => $url('/roles'), 'roles' => ['admin', 'super_admin'], 'icon' => 'key'],
+$navSections = [
+    [
+        'label' => 'Pilotage',
+        'items' => [
+            ['key' => 'dashboard', 'label' => 'Tableau de bord', 'href' => $url('/'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'dashboard'],
+            ['key' => 'reports', 'label' => 'Rapports', 'href' => $url('/rapports/ventes'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'chart'],
+        ],
+    ],
+    [
+        'label' => 'Ventes et clients',
+        'items' => [
+            ['key' => 'pos', 'label' => 'Caisse POS', 'href' => $url('/pos'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'pos'],
+            ['key' => 'sales', 'label' => 'Historique ventes', 'href' => $url('/sales'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'receipt'],
+            ['key' => 'customers', 'label' => 'Clients et credits', 'href' => $url('/customers'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'users'],
+        ],
+    ],
+    [
+        'label' => 'Stock et catalogue',
+        'items' => [
+            ['key' => 'products', 'label' => 'Catalogue produits', 'href' => $url('/products'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'box'],
+            ['key' => 'stock', 'label' => 'Stock et inventaire', 'href' => $url('/stock/movements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'stock'],
+        ],
+    ],
+    [
+        'label' => 'Achats et fournisseurs',
+        'items' => [
+            ['key' => 'supplies', 'label' => 'Approvisionnements', 'href' => $url('/supplies'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'truck'],
+            ['key' => 'suppliers', 'label' => 'Fournisseurs', 'href' => $url('/suppliers'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'handshake'],
+        ],
+    ],
+    [
+        'label' => 'Finance',
+        'items' => [
+            ['key' => 'finances', 'label' => 'Depenses et finances', 'href' => $url('/finances'), 'roles' => ['admin', 'super_admin'], 'icon' => 'finance'],
+        ],
+    ],
+    [
+        'label' => 'Administration',
+        'items' => [
+            ['key' => 'users', 'label' => 'Utilisateurs', 'href' => $url('/users'), 'roles' => ['admin', 'super_admin'], 'icon' => 'shield'],
+            ['key' => 'roles', 'label' => 'Roles et permissions', 'href' => $url('/roles'), 'roles' => ['admin', 'super_admin'], 'icon' => 'key'],
+        ],
+    ],
 ];
 
 $icon = static function (string $name): string {
@@ -55,16 +85,26 @@ $icon = static function (string $name): string {
         </button>
     </div>
 
-    <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        <?php foreach ($navItems as $item): ?>
-            <?php if (!in_array($role, $item['roles'], true) && !$isAdmin): ?>
+    <nav class="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+        <?php foreach ($navSections as $section): ?>
+            <?php
+            $visibleItems = array_values(array_filter($section['items'], static fn (array $item): bool => in_array($role, $item['roles'], true) || $isAdmin));
+            ?>
+            <?php if ($visibleItems === []): ?>
                 <?php continue; ?>
             <?php endif; ?>
-            <?php $isActive = $activeMenu === $item['key']; ?>
-            <a class="sidebar-link <?= $isActive ? 'is-active' : '' ?>" href="<?= $item['href'] ?>" title="<?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?>">
-                <?= $icon($item['icon']) ?>
-                <span class="sidebar-label truncate"><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></span>
-            </a>
+            <section class="space-y-1">
+                <p class="sidebar-label px-3 pb-1 text-xs font-bold uppercase tracking-[.16em] text-slate-500">
+                    <?= htmlspecialchars($section['label'], ENT_QUOTES, 'UTF-8') ?>
+                </p>
+                <?php foreach ($visibleItems as $item): ?>
+                    <?php $isActive = $activeMenu === $item['key']; ?>
+                    <a class="sidebar-link <?= $isActive ? 'is-active' : '' ?>" href="<?= $item['href'] ?>" title="<?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?>">
+                        <?= $icon($item['icon']) ?>
+                        <span class="sidebar-label truncate"><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </section>
         <?php endforeach; ?>
     </nav>
 
@@ -74,15 +114,15 @@ $icon = static function (string $name): string {
                 class="sidebar-link w-full"
                 type="button"
                 data-confirm
-                data-confirm-title="Se déconnecter de MadukaOne ?"
-                data-confirm-message="Votre session administrateur va être fermée et vous serez redirigé vers la page de connexion."
-                data-confirm-accept="Oui, me déconnecter"
-                data-confirm-progress="Déconnexion en cours..."
+                data-confirm-title="Se deconnecter de MadukaOne ?"
+                data-confirm-message="Votre session administrateur va etre fermee et vous serez redirige vers la page de connexion."
+                data-confirm-accept="Oui, me deconnecter"
+                data-confirm-progress="Deconnexion en cours..."
             >
                 <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M10 17 15 12l-5-5M15 12H3m9-8h6a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <span class="sidebar-label">Déconnexion</span>
+                <span class="sidebar-label">Deconnexion</span>
             </button>
         </form>
     </div>

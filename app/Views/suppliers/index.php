@@ -128,7 +128,7 @@ $icon = static function (string $name): string {
                 </select>
             </div>
 
-            <div class="mt-5 overflow-x-auto">
+            <div class="responsive-table mt-5 overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
                     <thead>
                         <tr class="text-xs uppercase tracking-[.14em] text-slate-400">
@@ -154,7 +154,7 @@ $icon = static function (string $name): string {
                                 data-phone="<?= $phone !== '' ? '1' : '0' ?>"
                                 data-email="<?= $email !== '' ? '1' : '0' ?>"
                             >
-                                <td class="px-4 py-4">
+                                <td class="px-4 py-4" data-label="Fournisseur">
                                     <div class="flex items-center gap-3">
                                         <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"><?= $icon('truck') ?></span>
                                         <span class="min-w-0">
