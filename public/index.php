@@ -6,8 +6,11 @@ header('Content-Type: text/html; charset=UTF-8');
 
 $root = dirname(__DIR__);
 
+require_once $root . '/app/Core/Env.php';
 require_once $root . '/app/Core/Middleware.php';
 require_once $root . '/app/Core/Router.php';
+
+Env::load($root);
 
 $router = new Router();
 $routes = require $root . '/routes/web.php';
