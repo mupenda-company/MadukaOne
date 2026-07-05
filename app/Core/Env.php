@@ -59,4 +59,23 @@ final class Env
 
         return $value;
     }
+    
+    public static function get(string $key, string $default = ''): string
+    {
+        $value = getenv($key);
+    
+        if ($value !== false && $value !== '') {
+            return (string) $value;
+        }
+    
+        if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+            return (string) $_ENV[$key];
+        }
+    
+        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+            return (string) $_SERVER[$key];
+        }
+    
+        return $default;
+    }
 }

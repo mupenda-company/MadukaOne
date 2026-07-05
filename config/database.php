@@ -1,29 +1,23 @@
 <?php
 
-$env = strtolower((string) (getenv('APP_ENV') ?: 'local'));
+$env = strtolower(Env::get('APP_ENV', 'local'));
 $prefix = $env === 'production' ? 'PRODUCTION' : 'LOCAL';
 
 $envValue = static function (string $key, string $default = '') use ($prefix): string {
-    $specific = getenv('DB_' . $prefix . '_' . $key);
+    $specific = Env::get('DB_' . $prefix . '_' . $key, '');
 
-    if ($specific !== false && $specific !== '') {
-        return (string) $specific;
+    if ($specific !== '') {
+        return $specific;
     }
 
-    $generic = getenv('DB_' . $key);
-
-    if ($generic !== false) {
-        return (string) $generic;
-    }
-
-    return $default;
+    return Env::get('DB_' . $key, $default);
 };
 
 return [
-    'host' => $envValue('HOST', '127.0.0.1'),
+    'host' => $envValue('HOST', 'localhost'),
     'port' => $envValue('PORT', '3306'),
-    'database' => $envValue('NAME', 'shop_logistique'),
-    'username' => $envValue('USER', 'root'),
-    'password' => $envValue('PASS'),
+    'database' => $envValue('NAME', ''),
+    'username' => $envValue('USER', ''),
+    'password' => $envValue('PASS', ''),
     'charset' => 'utf8mb4',
 ];
