@@ -13,20 +13,28 @@ class DashboardController extends AppController
         $shops = $this->shops();
         $currentUser = $this->currentUser();
         $activeShop = $this->activeShop($shops, $currentUser);
-        $summary = $this->summary((int) $activeShop['id']);
+        $shopId = (int) $activeShop['id'];
+        $summary = $this->summary($shopId);
+        $monthlyTrend = $this->monthlyTrend($shopId);
 
         $stats = [
+            [
+                'label' => 'Vente du jour',
+                'value' => $this->money((float) $summary['today_revenue']),
+                'detail' => (int) $summary['today_sales'] . ' ticket(s) validé(s) aujourd’hui',
+                'tone' => 'teal',
+            ],
             [
                 'label' => 'Chiffre d’affaires',
                 'value' => $this->money((float) $summary['revenue']),
                 'detail' => 'Ventes validées de la boutique',
-                'tone' => 'teal',
+                'tone' => 'blue',
             ],
             [
                 'label' => 'Marge brute',
                 'value' => $this->money((float) $summary['gross_margin']),
                 'detail' => 'Ventes moins coût d’achat',
-                'tone' => 'blue',
+                'tone' => 'emerald',
             ],
             [
                 'label' => 'Dépenses courantes',
@@ -44,8 +52,8 @@ class DashboardController extends AppController
 
         $recentSignals = [
             ['label' => 'Alertes stock', 'value' => (string) $summary['stock_alerts'], 'hint' => 'Produits sous le seuil minimum'],
-            ['label' => 'Ventes du jour', 'value' => (string) $summary['today_sales'], 'hint' => 'Tickets validés aujourd’hui'],
             ['label' => 'Crédits clients', 'value' => $this->money((float) $summary['customer_debt']), 'hint' => 'Montant restant à encaisser'],
+            ['label' => 'Produits actifs', 'value' => (string) $summary['active_products'], 'hint' => 'Catalogue disponible dans la boutique'],
         ];
 
         $this->render('dashboard/index', [
@@ -54,8 +62,10 @@ class DashboardController extends AppController
             'currentUser' => $currentUser,
             'shops' => $shops,
             'activeShop' => $activeShop,
+            'summary' => $summary,
             'stats' => $stats,
             'recentSignals' => $recentSignals,
+            'monthlyTrend' => $monthlyTrend,
             'activeMenu' => 'dashboard',
         ]);
     }
@@ -64,14 +74,29 @@ class DashboardController extends AppController
     {
         $sales = Database::connection()->prepare(
             "SELECT
-                COALESCE(SUM(sale_details.total_ligne), 0) AS revenue,
-                COALESCE(SUM(sale_details.quantite * sale_details.prix_achat_unitaire), 0) AS cost
-             FROM sale_details
-             INNER JOIN sales ON sales.id = sale_details.sale_id
+                COALESCE(SUM(sales.total_montant), 0) AS revenue,
+                COALESCE(SUM(sale_costs.cost), 0) AS cost
+             FROM sales
+             LEFT JOIN (
+                SELECT sale_id, SUM(quantite * prix_achat_unitaire) AS cost
+                FROM sale_details
+                GROUP BY sale_id
+             ) sale_costs ON sale_costs.sale_id = sales.id
              WHERE sales.shop_id = :shop_id AND sales.statut = 'validee'"
         );
         $sales->execute(['shop_id' => $shopId]);
         $salesSummary = $sales->fetch() ?: ['revenue' => 0, 'cost' => 0];
+
+        $todaySales = Database::connection()->prepare(
+            "SELECT COUNT(*) AS tickets, COALESCE(SUM(total_montant), 0) AS revenue
+             FROM sales
+             WHERE shop_id = :shop_id
+               AND statut = 'validee'
+               AND date_vente >= CURDATE()
+               AND date_vente < DATE_ADD(CURDATE(), INTERVAL 1 DAY)"
+        );
+        $todaySales->execute(['shop_id' => $shopId]);
+        $todaySummary = $todaySales->fetch() ?: ['tickets' => 0, 'revenue' => 0];
 
         $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id');
         $expenses->execute(['shop_id' => $shopId]);
@@ -80,15 +105,15 @@ class DashboardController extends AppController
         $signals = Database::connection()->prepare(
             "SELECT
                 (SELECT COUNT(*) FROM products WHERE shop_id = :shop_products AND actif = 1 AND quantite_stock <= alerte_stock_min) AS stock_alerts,
-                (SELECT COUNT(*) FROM sales WHERE shop_id = :shop_sales_today AND statut = 'validee' AND DATE(date_vente) = CURDATE()) AS today_sales,
+                (SELECT COUNT(*) FROM products WHERE shop_id = :shop_products_active AND actif = 1) AS active_products,
                 (SELECT COALESCE(SUM(montant_dette), 0) FROM sales WHERE shop_id = :shop_sales_debt AND statut = 'validee') AS customer_debt"
         );
         $signals->execute([
             'shop_products' => $shopId,
-            'shop_sales_today' => $shopId,
+            'shop_products_active' => $shopId,
             'shop_sales_debt' => $shopId,
         ]);
-        $signalSummary = $signals->fetch() ?: ['stock_alerts' => 0, 'today_sales' => 0, 'customer_debt' => 0];
+        $signalSummary = $signals->fetch() ?: ['stock_alerts' => 0, 'active_products' => 0, 'customer_debt' => 0];
         $grossMargin = (float) $salesSummary['revenue'] - (float) $salesSummary['cost'];
 
         return [
@@ -96,10 +121,119 @@ class DashboardController extends AppController
             'gross_margin' => $grossMargin,
             'expenses' => $expenseTotal,
             'net_profit' => $grossMargin - $expenseTotal,
+            'today_revenue' => (float) $todaySummary['revenue'],
+            'today_sales' => (int) $todaySummary['tickets'],
             'stock_alerts' => (int) $signalSummary['stock_alerts'],
-            'today_sales' => (int) $signalSummary['today_sales'],
+            'active_products' => (int) $signalSummary['active_products'],
             'customer_debt' => (float) $signalSummary['customer_debt'],
         ];
+    }
+
+    private function monthlyTrend(int $shopId): array
+    {
+        $months = [];
+        $start = new DateTimeImmutable('first day of this month');
+        $start = $start->modify('-5 months');
+
+        for ($index = 0; $index < 6; $index++) {
+            $month = $start->modify('+' . $index . ' months');
+            $key = $month->format('Y-m-01');
+            $months[$key] = [
+                'key' => $key,
+                'label' => $this->monthLabel((int) $month->format('n')),
+                'revenue' => 0.0,
+                'gross_margin' => 0.0,
+                'expenses' => 0.0,
+                'net_profit' => 0.0,
+                'revenue_height' => 8,
+                'margin_height' => 8,
+                'profit_height' => 8,
+            ];
+        }
+
+        $sales = Database::connection()->prepare(
+            "SELECT
+                DATE_FORMAT(sales.date_vente, '%Y-%m-01') AS period_key,
+                COALESCE(SUM(sales.total_montant), 0) AS revenue,
+                COALESCE(SUM(sale_costs.cost), 0) AS cost
+             FROM sales
+             LEFT JOIN (
+                SELECT sale_id, SUM(quantite * prix_achat_unitaire) AS cost
+                FROM sale_details
+                GROUP BY sale_id
+             ) sale_costs ON sale_costs.sale_id = sales.id
+             WHERE sales.shop_id = :shop_id
+               AND sales.statut = 'validee'
+               AND sales.date_vente >= :date_start
+             GROUP BY period_key"
+        );
+        $sales->execute([
+            'shop_id' => $shopId,
+            'date_start' => $start->format('Y-m-01 00:00:00'),
+        ]);
+
+        foreach ($sales->fetchAll() as $row) {
+            $key = (string) $row['period_key'];
+
+            if (!isset($months[$key])) {
+                continue;
+            }
+
+            $revenue = (float) $row['revenue'];
+            $grossMargin = $revenue - (float) $row['cost'];
+            $months[$key]['revenue'] = $revenue;
+            $months[$key]['gross_margin'] = $grossMargin;
+        }
+
+        $expenses = Database::connection()->prepare(
+            "SELECT DATE_FORMAT(date_depense, '%Y-%m-01') AS period_key, COALESCE(SUM(montant), 0) AS expenses
+             FROM expenses
+             WHERE shop_id = :shop_id AND date_depense >= :date_start
+             GROUP BY period_key"
+        );
+        $expenses->execute([
+            'shop_id' => $shopId,
+            'date_start' => $start->format('Y-m-01 00:00:00'),
+        ]);
+
+        foreach ($expenses->fetchAll() as $row) {
+            $key = (string) $row['period_key'];
+
+            if (!isset($months[$key])) {
+                continue;
+            }
+
+            $months[$key]['expenses'] = (float) $row['expenses'];
+        }
+
+        $max = 0.0;
+
+        foreach ($months as &$month) {
+            $month['net_profit'] = (float) $month['gross_margin'] - (float) $month['expenses'];
+            $max = max($max, (float) $month['revenue'], (float) $month['gross_margin'], abs((float) $month['net_profit']));
+        }
+        unset($month);
+
+        foreach ($months as &$month) {
+            $month['revenue_height'] = $this->barHeight((float) $month['revenue'], $max);
+            $month['margin_height'] = $this->barHeight((float) $month['gross_margin'], $max);
+            $month['profit_height'] = $this->barHeight(abs((float) $month['net_profit']), $max);
+        }
+        unset($month);
+
+        return array_values($months);
+    }
+
+    private function barHeight(float $value, float $max): int
+    {
+        return $max > 0 ? max(8, (int) round(($value / $max) * 100)) : 8;
+    }
+
+    private function monthLabel(int $month): string
+    {
+        $labels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+        return $labels[$month - 1] ?? '';
     }
 
     private function sendNoStoreHeaders(): void
