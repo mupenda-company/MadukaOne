@@ -13,6 +13,7 @@ $reportFilter = is_array($reportFilter ?? null) ? $reportFilter : [
     'start' => null,
     'end' => null,
 ];
+$periodDisplay = (string) ($periodDisplay ?? '');
 
 $money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
 $number = static fn ($value): string => number_format((float) $value, 0, ',', ' ');
@@ -43,9 +44,19 @@ $selectedPeriod = (string) ($reportFilter['period'] ?? 'current_month');
 $selected = static fn (string $period): string => $selectedPeriod === $period ? 'selected' : '';
 $filterStart = $reportFilter['start'] ?? null;
 $filterEnd = $reportFilter['end'] ?? null;
+$dateStartValue = (string) ($reportFilter['date_debut'] ?? ($filterStart !== null ? date('Y-m-d', strtotime((string) $filterStart)) : date('Y-m-01')));
+$dateEndValue = (string) ($reportFilter['date_fin'] ?? ($filterEnd !== null ? date('Y-m-d', strtotime((string) $filterEnd . ' -1 second')) : date('Y-m-d')));
+$exportQuery = ['period' => $selectedPeriod];
+if ($selectedPeriod === 'custom') {
+    $exportQuery['date_debut'] = $dateStartValue;
+    $exportQuery['date_fin'] = $dateEndValue;
+}
 $filterRange = $filterStart !== null && $filterEnd !== null
     ? date('d/m/Y', strtotime((string) $filterStart)) . ' - ' . date('d/m/Y', strtotime((string) $filterEnd . ' -1 second'))
     : 'Toutes les dates';
+$periodDisplay = $periodDisplay !== '' ? $periodDisplay : ($filterStart !== null && $filterEnd !== null
+    ? 'Vente du ' . date('d/m/Y', strtotime((string) $filterStart)) . ' au ' . date('d/m/Y', strtotime((string) $filterEnd . ' -1 second'))
+    : 'Toutes les ventes disponibles');
 
 $dailyRevenueMax = 0.0;
 $dailyTicketMax = 0;
@@ -121,32 +132,45 @@ if ($linePoints !== []) {
                 Synthèse détaillée des ventes validées, encaissements, crédits, produits performants et derniers tickets de la boutique active.
             </p>
             <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                <span class="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-teal-700">Période : <?= $safe($reportFilter['label'] ?? 'Mois en cours') ?></span>
+                <span class="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-teal-700"><?= $safe($periodDisplay) ?></span>
                 <span class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><?= $safe($filterRange) ?></span>
                 <span class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Première vente : <?= $safe($dateLabel($overview['first_sale_at'] ?? null, 'Aucune')) ?></span>
                 <span class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Dernière vente : <?= $safe($dateLabel($overview['last_sale_at'] ?? null, 'Aucune')) ?></span>
                 <span class="rounded-lg px-3 py-2 <?= $deltaClass ?>">Mois courant : <?= $delta >= 0 ? '+' : '' ?><?= number_format($delta, 1, ',', ' ') ?>%</span>
             </div>
         </div>
-        <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-            <a class="btn-secondary w-full sm:w-auto" href="<?= $url('/sales') ?>">Voir les tickets</a>
-            <a class="btn-primary w-full sm:w-auto" href="<?= $url('/pos') ?>">Nouvelle vente</a>
+        <div class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[28rem]">
+            <a class="btn-secondary w-full px-4" href="<?= $url('/rapports/ventes', $exportQuery + ['export_preview' => 'xlsx']) ?>">Prévisualiser Excel</a>
+            <a class="btn-secondary w-full px-4" href="<?= $url('/rapports/ventes', $exportQuery + ['export_preview' => 'pdf']) ?>">Prévisualiser PDF</a>
+            <a class="btn-secondary w-full px-4" href="<?= $url('/sales') ?>">Voir les tickets</a>
+            <a class="btn-primary w-full px-4" href="<?= $url('/pos') ?>">Nouvelle vente</a>
         </div>
     </div>
 
-    <form method="get" action="<?= $url('/rapports/ventes') ?>" class="surface-panel">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div class="w-full max-w-sm">
+    <form method="get" action="<?= $url('/rapports/ventes') ?>" class="surface-panel" data-report-filter-form>
+        <div class="grid gap-4 xl:grid-cols-[minmax(14rem,18rem)_1fr_auto] xl:items-end">
+            <div class="w-full">
                 <label for="report-period" class="mb-2 block text-sm font-bold text-slate-700">Filtrer le rapport</label>
-                <select id="report-period" name="period" class="field-control">
+                <select id="report-period" name="period" class="field-control" data-report-period>
                     <option value="current_month" <?= $selected('current_month') ?>>Mois en cours</option>
                     <option value="today" <?= $selected('today') ?>>Aujourd'hui</option>
                     <option value="last_7_days" <?= $selected('last_7_days') ?>>7 derniers jours</option>
                     <option value="last_30_days" <?= $selected('last_30_days') ?>>30 derniers jours</option>
                     <option value="current_year" <?= $selected('current_year') ?>>Année en cours</option>
+                    <option value="custom" <?= $selected('custom') ?>>Période personnalisée</option>
                     <option value="all" <?= $selected('all') ?>>Toutes les ventes</option>
                 </select>
                 <p class="mt-2 text-sm text-slate-500">Par défaut, le rapport affiche le mois en cours.</p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                    <label for="date-debut" class="mb-2 block text-sm font-bold text-slate-700">Date début</label>
+                    <input id="date-debut" class="field-control" name="date_debut" type="date" value="<?= $safe($dateStartValue) ?>" data-report-date>
+                </div>
+                <div>
+                    <label for="date-fin" class="mb-2 block text-sm font-bold text-slate-700">Date fin</label>
+                    <input id="date-fin" class="field-control" name="date_fin" type="date" value="<?= $safe($dateEndValue) ?>" data-report-date>
+                </div>
             </div>
             <div class="flex flex-col gap-2 sm:flex-row">
                 <a class="btn-secondary w-full sm:w-auto" href="<?= $url('/rapports/ventes') ?>">Réinitialiser</a>
@@ -195,7 +219,7 @@ if ($linePoints !== []) {
             <div class="panel-header">
                 <div>
                     <h2 class="font-bold text-slate-950">Évolution mensuelle du chiffre d'affaires</h2>
-                    <p class="mt-1 text-sm text-slate-500">Ventes validées pour la période : <?= $safe($reportFilter['label'] ?? 'Mois en cours') ?>.</p>
+                    <p class="mt-1 text-sm text-slate-500">Ventes validées pour la période : <?= $safe($periodDisplay) ?>.</p>
                 </div>
                 <span class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700"><?= date('Y') ?></span>
             </div>
@@ -387,3 +411,17 @@ if ($linePoints !== []) {
         </section>
     </div>
 </section>
+
+<script>
+    document.querySelectorAll('[data-report-filter-form]').forEach((form) => {
+        const period = form.querySelector('[data-report-period]');
+
+        form.querySelectorAll('[data-report-date]').forEach((input) => {
+            input.addEventListener('change', () => {
+                if (period instanceof HTMLSelectElement) {
+                    period.value = 'custom';
+                }
+            });
+        });
+    });
+</script>

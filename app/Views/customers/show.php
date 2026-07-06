@@ -28,6 +28,20 @@ $icon = static function (string $name): string {
         </div>
         <div class="flex flex-col gap-2 sm:flex-row">
             <a class="btn-secondary gap-2" href="<?= $url('/customers') ?>"><?= $icon('arrow') ?><span>Retour</span></a>
+            <?php if ($debt > 0): ?>
+                <form method="post" action="<?= $url('/customers/' . (int) $customer['id'] . '/settle-debt') ?>" data-confirm-form>
+                    <input type="hidden" name="amount" value="<?= htmlspecialchars((string) $debt, ENT_QUOTES, 'UTF-8') ?>">
+                    <button
+                        class="btn-secondary w-full gap-2 border-teal-100 bg-teal-50 text-teal-700 hover:bg-teal-100 sm:w-auto"
+                        type="button"
+                        data-confirm
+                        data-confirm-title="Régler la dette ?"
+                        data-confirm-message="Cette action réglera <?= $money($debt) ?> et actualisera les factures liées à ce client."
+                        data-confirm-accept="Régler"
+                        data-confirm-progress="Règlement..."
+                    ><?= $icon('cash') ?><span>Régler dette</span></button>
+                </form>
+            <?php endif; ?>
             <a class="btn-primary gap-2" href="<?= $url('/customers/' . (int) $customer['id'] . '/edit') ?>"><?= $icon('edit') ?><span>Modifier</span></a>
         </div>
     </div>

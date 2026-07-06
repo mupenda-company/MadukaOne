@@ -25,6 +25,10 @@ $icon = static function (string $name): string {
         'filter' => '<path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
         'receipt' => '<path d="M7 3h10l2 2v16l-3-2-2 2-2-2-2 2-3 2V5l2-2Zm2 6h6M9 13h6M9 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'cash' => '<path d="M4 7h16v10H4V7Zm4 5h.01M16 12h.01M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'eye' => '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2"/>',
+        'edit' => '<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m14 7 3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+        'trash' => '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'print' => '<path d="M7 8V4h10v4M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7v-7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
     ];
 
     return '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">' . ($paths[$name] ?? $paths['receipt']) . '</svg>';
@@ -40,10 +44,14 @@ $icon = static function (string $name): string {
                 Suivez les tickets, les modes de paiement, les crédits et les ventes annulées de la boutique active.
             </p>
         </div>
-        <a class="btn-primary w-full gap-2 sm:w-auto" href="<?= $url('/pos') ?>">
-            <?= $icon('plus') ?>
-            <span>Nouvelle vente</span>
-        </a>
+        <div class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[28rem]">
+            <a class="btn-secondary w-full px-4" href="<?= $url('/sales', ['export_preview' => 'xlsx']) ?>">Prévisualiser Excel</a>
+            <a class="btn-secondary w-full px-4" href="<?= $url('/sales', ['export_preview' => 'pdf']) ?>">Prévisualiser PDF</a>
+            <a class="btn-primary w-full gap-2 px-4 sm:col-span-2" href="<?= $url('/pos') ?>">
+                <?= $icon('plus') ?>
+                <span>Nouvelle vente</span>
+            </a>
+        </div>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -119,7 +127,7 @@ $icon = static function (string $name): string {
             <span class="grid h-10 w-10 place-items-center rounded-lg bg-teal-50 text-teal-700"><?= $icon('receipt') ?></span>
         </div>
 
-        <div class="mt-5 overflow-x-auto">
+        <div class="responsive-table mt-5 overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
                 <thead>
                     <tr class="text-xs uppercase tracking-[.14em] text-slate-400">
@@ -133,6 +141,7 @@ $icon = static function (string $name): string {
                         <th class="px-4 py-3 font-semibold">Crédit</th>
                         <th class="px-4 py-3 font-semibold">Statut</th>
                         <th class="px-4 py-3 font-semibold">Date</th>
+                        <th class="px-4 py-3 text-right font-semibold">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100" data-sales-table>
@@ -162,19 +171,40 @@ $icon = static function (string $name): string {
                                     </span>
                                 </div>
                             </td>
-                            <td class="px-4 py-4 text-slate-600"><?= $safe($sale['customer_name'] ?? 'Client comptant') ?></td>
-                            <td class="px-4 py-4 text-slate-600"><?= $safe($sale['user_name'] ?? '-') ?></td>
-                            <td class="px-4 py-4 font-semibold"><?= (int) ($sale['articles_count'] ?? 0) ?> article(s)</td>
-                            <td class="px-4 py-4">
+                            <td class="px-4 py-4 text-slate-600" data-label="Client"><?= $safe($sale['customer_name'] ?? 'Client comptant') ?></td>
+                            <td class="px-4 py-4 text-slate-600" data-label="Caissier"><?= $safe($sale['user_name'] ?? '-') ?></td>
+                            <td class="px-4 py-4 font-semibold" data-label="Articles"><?= (int) ($sale['articles_count'] ?? 0) ?> article(s)</td>
+                            <td class="px-4 py-4" data-label="Paiement">
                                 <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><?= $modeLabel($payment) ?></span>
                             </td>
-                            <td class="px-4 py-4 font-bold text-slate-950"><?= $money($sale['total_montant'] ?? 0) ?></td>
-                            <td class="px-4 py-4 font-semibold text-teal-700"><?= $money($sale['montant_recu'] ?? 0) ?></td>
-                            <td class="px-4 py-4 font-semibold <?= $debt > 0 ? 'text-amber-700' : 'text-slate-500' ?>"><?= $money($debt) ?></td>
-                            <td class="px-4 py-4">
+                            <td class="px-4 py-4 font-bold text-slate-950" data-label="Total"><?= $money($sale['total_montant'] ?? 0) ?></td>
+                            <td class="px-4 py-4 font-semibold text-teal-700" data-label="Reçu"><?= $money($sale['montant_recu'] ?? 0) ?></td>
+                            <td class="px-4 py-4 font-semibold <?= $debt > 0 ? 'text-amber-700' : 'text-slate-500' ?>" data-label="Crédit"><?= $money($debt) ?></td>
+                            <td class="px-4 py-4" data-label="Statut">
                                 <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold <?= $statusClass($status) ?>"><?= $statusLabel($status) ?></span>
                             </td>
-                            <td class="px-4 py-4 text-slate-600"><?= $safe($dateLabel($sale['date_vente'] ?? null)) ?></td>
+                            <td class="px-4 py-4 text-slate-600" data-label="Date"><?= $safe($dateLabel($sale['date_vente'] ?? null)) ?></td>
+                            <td class="px-4 py-4" data-label="Actions">
+                                <div class="flex justify-end gap-2">
+                                    <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700" href="<?= $url('/sales/' . (int) ($sale['id'] ?? 0)) ?>" title="Voir la vente" aria-label="Voir la vente">
+                                        <?= $icon('eye') ?>
+                                    </a>
+                                    <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" href="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/edit') ?>" title="Modifier" aria-label="Modifier">
+                                        <?= $icon('edit') ?>
+                                    </a>
+                                    <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900" href="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/invoice') ?>" target="_blank" title="Imprimer la facture" aria-label="Imprimer la facture">
+                                        <?= $icon('print') ?>
+                                    </a>
+                                    <?php if ($status !== 'annulee'): ?>
+                                        <form method="post" action="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/delete') ?>" data-confirm-form>
+                                            <input type="hidden" name="reason" value="Vente supprimée depuis l'historique">
+                                            <button class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50" type="submit" title="Supprimer" aria-label="Supprimer" data-confirm-message="Cette action annulera la vente, restaurera le stock et ajustera la dette client. Continuer ?">
+                                                <?= $icon('trash') ?>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

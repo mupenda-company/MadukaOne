@@ -106,6 +106,30 @@ class CustomerController extends AppController
         $this->redirect('/customers');
     }
 
+    public function settleDebt(array $params = []): void
+    {
+        $id = $this->customerIdFromParams($params);
+        $amount = (float) ($_POST['amount'] ?? 0);
+
+        try {
+            $result = $this->customers->settleDebtByShop($id, $this->currentShopId(), $amount);
+
+            if (($result['settled'] ?? 0) <= 0) {
+                $this->flashError('Aucune dette à régler pour ce client.');
+                $this->redirect('/customers');
+            }
+
+            $this->flashSuccess(
+                'Dette réglée: ' . number_format((float) $result['settled'], 2, ',', ' ')
+                . ' USD. Facture(s) actualisée(s): ' . (int) ($result['updated_sales'] ?? 0) . '.'
+            );
+        } catch (Throwable $exception) {
+            $this->flashError('Impossible de régler la dette: ' . $exception->getMessage());
+        }
+
+        $this->redirect('/customers');
+    }
+
     private function validateCustomer(array $data): Validator
     {
         return Validator::make($data)
