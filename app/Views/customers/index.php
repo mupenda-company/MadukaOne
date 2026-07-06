@@ -18,6 +18,7 @@ $icon = static function (string $name): string {
         'eye' => '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2"/>',
         'edit' => '<path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m13.5 6.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
         'trash' => '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'cash' => '<path d="M4 7h16v10H4V7Zm4 5h.01M16 12h.01M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     ];
 
     return '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">' . ($paths[$name] ?? $paths['user']) . '</svg>';
@@ -149,6 +150,23 @@ $icon = static function (string $name): string {
                                     <div class="flex items-center justify-end gap-2">
                                         <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-slate-200" href="<?= $url('/customers/' . (int) $customer['id']) ?>" title="Voir le client" aria-label="Voir le client"><?= $icon('eye') ?></a>
                                         <a class="grid h-9 w-9 place-items-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700 transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100" href="<?= $url('/customers/' . (int) $customer['id'] . '/edit') ?>" title="Modifier le client" aria-label="Modifier le client"><?= $icon('edit') ?></a>
+                                        <?php if ($debt > 0): ?>
+                                            <form method="post" action="<?= $url('/customers/' . (int) $customer['id'] . '/settle-debt') ?>" data-confirm-form>
+                                                <input type="hidden" name="amount" value="<?= htmlspecialchars((string) $debt, ENT_QUOTES, 'UTF-8') ?>">
+                                                <button
+                                                    class="inline-flex h-9 items-center gap-2 rounded-lg border border-teal-100 bg-teal-50 px-3 text-xs font-bold text-teal-700 transition hover:bg-teal-100 focus:outline-none focus:ring-4 focus:ring-teal-100"
+                                                    type="button"
+                                                    data-confirm
+                                                    data-confirm-title="Régler la dette ?"
+                                                    data-confirm-message="Cette action réglera la dette de <?= $safe($customer['nom'] ?? 'ce client') ?> pour <?= $money($debt) ?> et actualisera les factures liées."
+                                                    data-confirm-accept="Régler"
+                                                    data-confirm-progress="Règlement..."
+                                                >
+                                                    <?= $icon('cash') ?>
+                                                    <span>Régler</span>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                         <form method="post" action="<?= $url('/customers/' . (int) $customer['id'] . '/delete') ?>" data-confirm-form>
                                             <button
                                                 class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
