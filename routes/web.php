@@ -4,7 +4,13 @@ $guest = ['guest'];
 $protected = ['auth', 'blockAgentAdminAccess'];
 
 return [
-    ['GET', '/', 'DashboardController@index', $protected],
+    ['GET', '/', 'HomeController@index'],
+    ['GET', '/home', 'HomeController@index'],
+    ['GET', '/accueil', 'HomeController@index'],
+    ['GET', '/privacy', 'HomeController@privacy'],
+    ['GET', '/confidentialite', 'HomeController@privacy'],
+    ['GET', '/terms', 'HomeController@terms'],
+    ['GET', '/conditions', 'HomeController@terms'],
     ['GET', '/dashboard', 'DashboardController@index', $protected],
 
     ['GET', '/login', 'AuthController@login', $guest],

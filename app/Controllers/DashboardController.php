@@ -48,10 +48,17 @@ class DashboardController extends AppController
                 'detail' => 'Marge brute moins dépenses',
                 'tone' => 'slate',
             ],
+            [
+                'label' => 'Alertes expiration',
+                'value' => (string) $summary['expiration_alerts'],
+                'detail' => 'Produits expires ou a moins de 30 jours',
+                'tone' => 'amber',
+            ],
         ];
 
         $recentSignals = [
             ['label' => 'Alertes stock', 'value' => (string) $summary['stock_alerts'], 'hint' => 'Produits sous le seuil minimum'],
+            ['label' => 'Alertes expiration', 'value' => (string) $summary['expiration_alerts'], 'hint' => 'Produits expires ou proches de la date limite'],
             ['label' => 'Crédits clients', 'value' => $this->money((float) $summary['customer_debt']), 'hint' => 'Montant restant à encaisser'],
             ['label' => 'Produits actifs', 'value' => (string) $summary['active_products'], 'hint' => 'Catalogue disponible dans la boutique'],
         ];
@@ -105,15 +112,17 @@ class DashboardController extends AppController
         $signals = Database::connection()->prepare(
             "SELECT
                 (SELECT COUNT(*) FROM products WHERE shop_id = :shop_products AND actif = 1 AND quantite_stock <= alerte_stock_min) AS stock_alerts,
+                (SELECT COUNT(*) FROM products WHERE shop_id = :shop_expiration AND actif = 1 AND date_expiration IS NOT NULL AND date_expiration <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)) AS expiration_alerts,
                 (SELECT COUNT(*) FROM products WHERE shop_id = :shop_products_active AND actif = 1) AS active_products,
                 (SELECT COALESCE(SUM(montant_dette), 0) FROM sales WHERE shop_id = :shop_sales_debt AND statut = 'validee') AS customer_debt"
         );
         $signals->execute([
             'shop_products' => $shopId,
+            'shop_expiration' => $shopId,
             'shop_products_active' => $shopId,
             'shop_sales_debt' => $shopId,
         ]);
-        $signalSummary = $signals->fetch() ?: ['stock_alerts' => 0, 'active_products' => 0, 'customer_debt' => 0];
+        $signalSummary = $signals->fetch() ?: ['stock_alerts' => 0, 'expiration_alerts' => 0, 'active_products' => 0, 'customer_debt' => 0];
         $grossMargin = (float) $salesSummary['revenue'] - (float) $salesSummary['cost'];
 
         return [
@@ -124,6 +133,7 @@ class DashboardController extends AppController
             'today_revenue' => (float) $todaySummary['revenue'],
             'today_sales' => (int) $todaySummary['tickets'],
             'stock_alerts' => (int) $signalSummary['stock_alerts'],
+            'expiration_alerts' => (int) $signalSummary['expiration_alerts'],
             'active_products' => (int) $signalSummary['active_products'],
             'customer_debt' => (float) $signalSummary['customer_debt'],
         ];

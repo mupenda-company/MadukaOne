@@ -7,7 +7,7 @@ $navSections = [
     [
         'label' => 'Pilotage',
         'items' => [
-            ['key' => 'dashboard', 'label' => 'Tableau de bord', 'href' => $url('/'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'dashboard'],
+            ['key' => 'dashboard', 'label' => 'Tableau de bord', 'href' => $url('/dashboard'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'dashboard'],
             ['key' => 'reports', 'label' => 'Rapports', 'href' => $url('/rapports/ventes'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'chart'],
         ],
     ],

@@ -42,6 +42,12 @@ class ProductController extends AppController
             $this->redirect('/products/create');
         }
 
+        $dateError = $this->dateValidationError($data);
+        if ($dateError !== null) {
+            $this->flashError($dateError);
+            $this->redirect('/products/create');
+        }
+
         try {
             $productId = $this->products->create($data, $this->currentShopId(), $this->currentUserId());
             $stock = (int) ($data['quantite_stock'] ?? 0);
@@ -84,6 +90,12 @@ class ProductController extends AppController
 
         if ($validator->fails()) {
             $this->flashError($this->firstError($validator->errors()));
+            $this->redirect('/products/' . $id . '/edit');
+        }
+
+        $dateError = $this->dateValidationError($data);
+        if ($dateError !== null) {
+            $this->flashError($dateError);
             $this->redirect('/products/' . $id . '/edit');
         }
 
@@ -135,6 +147,8 @@ class ProductController extends AppController
             'prix_achat' => $_POST['prix_achat'] ?? 0,
             'prix_vente' => $_POST['prix_vente'] ?? 0,
             'alerte_stock_min' => $_POST['alerte_stock_min'] ?? 0,
+            'date_fabrication' => $_POST['date_fabrication'] ?? null,
+            'date_expiration' => $_POST['date_expiration'] ?? null,
             'actif' => $_POST['actif'] ?? '1',
         ];
 
@@ -143,6 +157,46 @@ class ProductController extends AppController
         }
 
         return $payload;
+    }
+
+    private function dateValidationError(array $data): ?string
+    {
+        $manufacturedValue = trim((string) ($data['date_fabrication'] ?? ''));
+        $expirationValue = trim((string) ($data['date_expiration'] ?? ''));
+        $manufacturedAt = $this->dateFromInput($data['date_fabrication'] ?? null);
+        $expiresAt = $this->dateFromInput($data['date_expiration'] ?? null);
+
+        if ($manufacturedValue !== '' && $manufacturedAt === null) {
+            return 'La date de fabrication est invalide.';
+        }
+
+        if ($expirationValue !== '' && $expiresAt === null) {
+            return 'La date d expiration est invalide.';
+        }
+
+        if ($manufacturedAt !== null && $expiresAt !== null && $manufacturedAt > $expiresAt) {
+            return 'La date de fabrication ne peut pas etre apres la date d expiration.';
+        }
+
+        return null;
+    }
+
+    private function dateFromInput(mixed $value): ?DateTimeImmutable
+    {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '') {
+            return null;
+        }
+
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        $errors = DateTimeImmutable::getLastErrors();
+
+        if (!$date instanceof DateTimeImmutable || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+            return null;
+        }
+
+        return $date;
     }
 
     private function findProductFromParams(array $params): array

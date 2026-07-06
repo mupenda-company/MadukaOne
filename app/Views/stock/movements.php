@@ -52,10 +52,11 @@ $icon = static function (string $name): string {
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <article class="stat-card"><p class="text-sm text-slate-500">Produits actifs</p><p class="mt-2 text-2xl font-bold"><?= (int) ($stockStats['active_products'] ?? 0) ?></p></article>
         <article class="stat-card"><p class="text-sm text-slate-500">Unites en stock</p><p class="mt-2 text-2xl font-bold"><?= (int) ($stockStats['units'] ?? 0) ?></p></article>
         <article class="stat-card"><p class="text-sm text-slate-500">Alertes stock</p><p class="mt-2 text-2xl font-bold text-amber-700"><?= (int) ($stockStats['stock_alerts'] ?? 0) ?></p></article>
+        <article class="stat-card"><p class="text-sm text-slate-500">Alertes expiration</p><p class="mt-2 text-2xl font-bold text-orange-700"><?= (int) ($stockStats['expiration_alerts'] ?? 0) ?></p></article>
         <article class="stat-card"><p class="text-sm text-slate-500">Ruptures</p><p class="mt-2 text-2xl font-bold text-red-700"><?= (int) ($stockStats['ruptures'] ?? 0) ?></p></article>
     </div>
 

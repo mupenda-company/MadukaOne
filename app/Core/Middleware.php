@@ -39,7 +39,7 @@ final class Middleware
         self::sendNoStoreHeaders();
 
         if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
-            self::redirect(self::isAgent() ? '/pos' : '/');
+            self::redirect(self::isAgent() ? '/pos' : '/dashboard');
         }
     }
 

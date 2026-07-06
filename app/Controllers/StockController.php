@@ -171,8 +171,11 @@ class StockController extends AppController
     {
         $active = 0;
         $alerts = 0;
+        $expirationAlerts = 0;
         $ruptures = 0;
         $units = 0;
+        $today = new DateTimeImmutable('today');
+        $expirationLimit = $today->modify('+30 days');
 
         foreach ($products as $product) {
             if ((int) ($product['actif'] ?? 0) !== 1) {
@@ -191,11 +194,19 @@ class StockController extends AppController
             if ($stock <= $min) {
                 $alerts++;
             }
+
+            $expirationValue = trim((string) ($product['date_expiration'] ?? ''));
+            $expiresAt = $expirationValue === '' ? null : DateTimeImmutable::createFromFormat('!Y-m-d', substr($expirationValue, 0, 10));
+
+            if ($expiresAt instanceof DateTimeImmutable && $expiresAt <= $expirationLimit) {
+                $expirationAlerts++;
+            }
         }
 
         return [
             'active_products' => $active,
             'stock_alerts' => $alerts,
+            'expiration_alerts' => $expirationAlerts,
             'ruptures' => $ruptures,
             'units' => $units,
         ];

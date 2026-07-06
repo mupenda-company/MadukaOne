@@ -42,6 +42,14 @@
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Alerte stock minimal</span>
                     <input class="field-control" name="alerte_stock_min" type="number" min="0" step="1" value="5">
                 </label>
+                <label class="block">
+                    <span class="mb-2 block text-sm font-semibold text-slate-700">Date de fabrication</span>
+                    <input class="field-control" name="date_fabrication" type="date">
+                </label>
+                <label class="block">
+                    <span class="mb-2 block text-sm font-semibold text-slate-700">Date d'expiration</span>
+                    <input class="field-control" name="date_expiration" type="date">
+                </label>
                 <label class="block sm:col-span-2">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Description</span>
                     <textarea class="field-control min-h-28" name="description" placeholder="Informations utiles pour les vendeurs"></textarea>
@@ -50,9 +58,9 @@
         </section>
 
         <aside class="surface-panel h-fit">
-            <h2 class="font-bold text-slate-950">Contrôle stock</h2>
+            <h2 class="font-bold text-slate-950">Controle stock et dates</h2>
             <p class="mt-2 text-sm leading-6 text-slate-500">
-                Le seuil minimal déclenchera les alertes du tableau de bord lorsque le stock devient faible.
+                Le seuil minimal declenchera les alertes stock. La date d'expiration declenchera aussi une alerte 30 jours avant l'echeance.
             </p>
             <div class="mt-5 rounded-lg border border-amber-100 bg-amber-50 p-4 text-sm text-amber-700">
                 Les mouvements de stock réels doivent ensuite passer par le journal de stock pour garder l’audit fiable.

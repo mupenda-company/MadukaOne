@@ -11,6 +11,38 @@ $isActive = (int) ($product['actif'] ?? 1) === 1;
 
 $status = $stock === 0 ? 'Rupture' : ($stock <= $minStock ? 'Alerte stock' : 'Disponible');
 $statusClass = $stock === 0 ? 'bg-red-50 text-red-700' : ($stock <= $minStock ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700');
+$today = new DateTimeImmutable('today');
+$expirationLimit = $today->modify('+30 days');
+$parseDate = static function ($value): ?DateTimeImmutable {
+    $value = trim((string) ($value ?? ''));
+
+    if ($value === '') {
+        return null;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', substr($value, 0, 10));
+
+    return $date instanceof DateTimeImmutable ? $date : null;
+};
+$formatDate = static fn (?DateTimeImmutable $date): string => $date instanceof DateTimeImmutable ? $date->format('d/m/Y') : '-';
+$manufacturedAt = $parseDate($product['date_fabrication'] ?? null);
+$expiresAt = $parseDate($product['date_expiration'] ?? null);
+$expirationStatus = 'Non definie';
+$expirationClass = 'bg-slate-100 text-slate-600';
+
+if ($expiresAt instanceof DateTimeImmutable) {
+    if ($expiresAt < $today) {
+        $expirationStatus = 'Expire';
+        $expirationClass = 'bg-red-50 text-red-700';
+    } elseif ($expiresAt <= $expirationLimit) {
+        $days = (int) $today->diff($expiresAt)->format('%a');
+        $expirationStatus = $days === 0 ? 'Expire aujourd hui' : 'Expire dans ' . $days . ' j';
+        $expirationClass = 'bg-orange-50 text-orange-700';
+    } else {
+        $expirationStatus = 'Valide';
+        $expirationClass = 'bg-teal-50 text-teal-700';
+    }
+}
 
 $formatMoney = static fn (float $value): string => number_format($value, 2, ',', ' ') . ' USD';
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
@@ -49,7 +81,7 @@ $icon = static function (string $name): string {
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <article class="stat-card">
             <p class="text-sm text-slate-500">Prix d'achat</p>
             <p class="mt-2 text-2xl font-bold"><?= $formatMoney($purchasePrice) ?></p>
@@ -65,6 +97,10 @@ $icon = static function (string $name): string {
         <article class="stat-card">
             <p class="text-sm text-slate-500">Statut stock</p>
             <p class="mt-3"><span class="inline-flex rounded-full px-3 py-1 text-sm font-bold <?= $statusClass ?>"><?= $status ?></span></p>
+        </article>
+        <article class="stat-card">
+            <p class="text-sm text-slate-500">Expiration</p>
+            <p class="mt-3"><span class="inline-flex rounded-full px-3 py-1 text-sm font-bold <?= $expirationClass ?>"><?= htmlspecialchars($expirationStatus, ENT_QUOTES, 'UTF-8') ?></span></p>
         </article>
     </div>
 
@@ -94,6 +130,14 @@ $icon = static function (string $name): string {
                 <div class="signal-row">
                     <dt class="text-slate-500">Seuil minimal</dt>
                     <dd class="font-semibold text-slate-950"><?= $minStock ?></dd>
+                </div>
+                <div class="signal-row">
+                    <dt class="text-slate-500">Date de fabrication</dt>
+                    <dd class="font-semibold text-slate-950"><?= $formatDate($manufacturedAt) ?></dd>
+                </div>
+                <div class="signal-row">
+                    <dt class="text-slate-500">Date d'expiration</dt>
+                    <dd class="font-semibold text-slate-950"><?= $formatDate($expiresAt) ?></dd>
                 </div>
                 <div class="signal-row">
                     <dt class="text-slate-500">Etat</dt>

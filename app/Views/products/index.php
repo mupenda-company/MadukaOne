@@ -2,8 +2,31 @@
 
 $products = is_array($products ?? null) ? $products : [];
 $activeProducts = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1));
-$stockAlerts = count(array_filter($products, static fn (array $product): bool => (int) $product['quantite_stock'] <= (int) $product['alerte_stock_min']));
-$stockBreaks = count(array_filter($products, static fn (array $product): bool => (int) $product['quantite_stock'] === 0));
+$stockAlerts = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1 && (int) $product['quantite_stock'] <= (int) $product['alerte_stock_min']));
+$stockBreaks = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1 && (int) $product['quantite_stock'] === 0));
+$today = new DateTimeImmutable('today');
+$expirationLimit = $today->modify('+30 days');
+$parseDate = static function ($value): ?DateTimeImmutable {
+    $value = trim((string) ($value ?? ''));
+
+    if ($value === '') {
+        return null;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', substr($value, 0, 10));
+
+    return $date instanceof DateTimeImmutable ? $date : null;
+};
+$formatDate = static fn (?DateTimeImmutable $date): string => $date instanceof DateTimeImmutable ? $date->format('d/m/Y') : '-';
+$expirationAlerts = count(array_filter($products, static function (array $product) use ($parseDate, $today, $expirationLimit): bool {
+    if ((int) ($product['actif'] ?? 1) !== 1) {
+        return false;
+    }
+
+    $date = $parseDate($product['date_expiration'] ?? null);
+
+    return $date instanceof DateTimeImmutable && $date <= $expirationLimit;
+}));
 
 $icon = static function (string $name): string {
     $paths = [
@@ -35,7 +58,7 @@ $icon = static function (string $name): string {
         </a>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article class="stat-card">
             <div class="flex items-center justify-between gap-3">
                 <p class="text-sm text-slate-500">Produits actifs</p>
@@ -49,6 +72,13 @@ $icon = static function (string $name): string {
                 <span class="grid h-9 w-9 place-items-center rounded-lg bg-amber-50 text-amber-700"><?= $icon('filter') ?></span>
             </div>
             <p class="mt-2 text-2xl font-bold text-amber-700"><?= $stockAlerts ?></p>
+        </article>
+        <article class="stat-card">
+            <div class="flex items-center justify-between gap-3">
+                <p class="text-sm text-slate-500">Alertes expiration</p>
+                <span class="grid h-9 w-9 place-items-center rounded-lg bg-orange-50 text-orange-700"><?= $icon('filter') ?></span>
+            </div>
+            <p class="mt-2 text-2xl font-bold text-orange-700"><?= $expirationAlerts ?></p>
         </article>
         <article class="stat-card">
             <div class="flex items-center justify-between gap-3">
@@ -82,6 +112,7 @@ $icon = static function (string $name): string {
                 <option value="all">Tous les statuts</option>
                 <option value="available">Disponible</option>
                 <option value="alert">Alerte stock</option>
+                <option value="expiration">Alerte expiration</option>
                 <option value="break">Rupture</option>
             </select>
             <select class="field-control" data-products-stock>
@@ -122,6 +153,8 @@ $icon = static function (string $name): string {
                         <th class="px-4 py-3 font-semibold">Vente</th>
                         <th class="px-4 py-3 font-semibold">Stock</th>
                         <th class="px-4 py-3 font-semibold">Alerte min.</th>
+                        <th class="px-4 py-3 font-semibold">Fabrication</th>
+                        <th class="px-4 py-3 font-semibold">Expiration</th>
                         <th class="px-4 py-3 font-semibold">Statut</th>
                         <th class="px-4 py-3 text-right font-semibold">Actions</th>
                     </tr>
@@ -135,6 +168,25 @@ $icon = static function (string $name): string {
                         $status = $stock === 0 ? 'Rupture' : ($stock <= $min ? 'Alerte' : 'Disponible');
                         $statusKey = $stock === 0 ? 'break' : ($stock <= $min ? 'alert' : 'available');
                         $statusClass = $stock === 0 ? 'bg-red-50 text-red-700' : ($stock <= $min ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700');
+                        $manufacturedAt = $parseDate($product['date_fabrication'] ?? null);
+                        $expiresAt = $parseDate($product['date_expiration'] ?? null);
+                        $expirationAlert = $expiresAt instanceof DateTimeImmutable && $expiresAt <= $expirationLimit;
+                        $expirationText = 'Non definie';
+                        $expirationClass = 'bg-slate-100 text-slate-600';
+
+                        if ($expiresAt instanceof DateTimeImmutable) {
+                            if ($expiresAt < $today) {
+                                $expirationText = 'Expire';
+                                $expirationClass = 'bg-red-50 text-red-700';
+                            } elseif ($expiresAt <= $expirationLimit) {
+                                $days = (int) $today->diff($expiresAt)->format('%a');
+                                $expirationText = $days === 0 ? 'Aujourd hui' : 'Dans ' . $days . ' j';
+                                $expirationClass = 'bg-orange-50 text-orange-700';
+                            } else {
+                                $expirationText = $formatDate($expiresAt);
+                                $expirationClass = 'bg-teal-50 text-teal-700';
+                            }
+                        }
                         $searchText = strtolower(trim((string) ($product['nom'] ?? '') . ' ' . (string) ($product['ref'] ?? '') . ' ' . (string) ($product['code_barre'] ?? '')));
                         ?>
                         <tr
@@ -145,6 +197,7 @@ $icon = static function (string $name): string {
                             data-stock="<?= $stock ?>"
                             data-min="<?= $min ?>"
                             data-price="<?= $salePrice ?>"
+                            data-expiration-alert="<?= $expirationAlert ? '1' : '0' ?>"
                         >
                             <td class="px-4 py-4">
                                 <div class="flex items-center gap-3">
@@ -162,6 +215,13 @@ $icon = static function (string $name): string {
                                 <span class="font-bold"><?= $stock ?></span>
                             </td>
                             <td class="px-4 py-4"><?= $min ?></td>
+                            <td class="px-4 py-4 text-slate-600"><?= $formatDate($manufacturedAt) ?></td>
+                            <td class="px-4 py-4">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold <?= $expirationClass ?>"><?= htmlspecialchars($expirationText, ENT_QUOTES, 'UTF-8') ?></span>
+                                <?php if ($expiresAt instanceof DateTimeImmutable): ?>
+                                    <span class="mt-1 block text-xs text-slate-500"><?= $formatDate($expiresAt) ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td class="px-4 py-4">
                                 <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold <?= $statusClass ?>"><?= $status ?></span>
                             </td>
@@ -261,7 +321,7 @@ $icon = static function (string $name): string {
             rows.forEach((row) => {
                 const isVisible =
                     (query === '' || (row.dataset.search || '').includes(query)) &&
-                    (statusValue === 'all' || row.dataset.status === statusValue) &&
+                    (statusValue === 'all' || row.dataset.status === statusValue || (statusValue === 'expiration' && row.dataset.expirationAlert === '1')) &&
                     matchesStock(row, stockValue) &&
                     matchesPrice(Number(row.dataset.price || 0), priceValue);
 

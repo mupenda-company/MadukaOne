@@ -15,6 +15,7 @@ $oldEmail = htmlspecialchars((string) ($_POST['email'] ?? ''), ENT_QUOTES, 'UTF-
 $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
 $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
 $createShopUrl = htmlspecialchars($basePath . '/shops/create', ENT_QUOTES, 'UTF-8');
+$homeUrl = htmlspecialchars($basePath . '/', ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
 <html lang="fr">
@@ -88,7 +89,10 @@ $createShopUrl = htmlspecialchars($basePath . '/shops/create', ENT_QUOTES, 'UTF-
                 </div>
 
                 <div class="auth-panel rounded-[1.25rem] border border-white/80 bg-white/90 p-5 backdrop-blur sm:p-8">
-                    <div class="mb-5 flex justify-end">
+                    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <a class="btn-secondary h-10 w-full gap-2 px-4 sm:w-auto" href="<?= $homeUrl ?>">
+                            <span>Accueil</span>
+                        </a>
                         <a class="btn-secondary h-10 w-full gap-2 px-4 sm:w-auto" href="<?= $createShopUrl ?>">
                             <span>Créer une boutique</span>
                         </a>

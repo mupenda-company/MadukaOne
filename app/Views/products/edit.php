@@ -10,6 +10,36 @@ $margin = $salePrice - $purchasePrice;
 $isActive = (int) ($product['actif'] ?? 1) === 1;
 $stockStatus = $stock === 0 ? 'Rupture' : ($stock <= $minStock ? 'Alerte stock' : 'Disponible');
 $stockStatusClass = $stock === 0 ? 'bg-red-50 text-red-700' : ($stock <= $minStock ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700');
+$today = new DateTimeImmutable('today');
+$expirationLimit = $today->modify('+30 days');
+$parseDate = static function ($value): ?DateTimeImmutable {
+    $value = trim((string) ($value ?? ''));
+
+    if ($value === '') {
+        return null;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', substr($value, 0, 10));
+
+    return $date instanceof DateTimeImmutable ? $date : null;
+};
+$expiresAt = $parseDate($product['date_expiration'] ?? null);
+$expirationStatus = 'Aucune date d expiration';
+$expirationStatusClass = 'bg-slate-100 text-slate-600';
+
+if ($expiresAt instanceof DateTimeImmutable) {
+    if ($expiresAt < $today) {
+        $expirationStatus = 'Produit expire';
+        $expirationStatusClass = 'bg-red-50 text-red-700';
+    } elseif ($expiresAt <= $expirationLimit) {
+        $days = (int) $today->diff($expiresAt)->format('%a');
+        $expirationStatus = $days === 0 ? 'Expire aujourd hui' : 'Expire dans ' . $days . ' jour(s)';
+        $expirationStatusClass = 'bg-orange-50 text-orange-700';
+    } else {
+        $expirationStatus = 'Expiration surveillee';
+        $expirationStatusClass = 'bg-teal-50 text-teal-700';
+    }
+}
 
 $value = static fn ($field, string $fallback = ''): string => htmlspecialchars((string) (($product[$field] ?? '') !== '' ? $product[$field] : $fallback), ENT_QUOTES, 'UTF-8');
 $formatMoney = static fn (float $amount): string => number_format($amount, 2, ',', ' ') . ' USD';
@@ -77,6 +107,16 @@ $icon = static function (string $name): string {
                     <textarea class="field-control min-h-32" name="description" placeholder="Details utiles pour les vendeurs et le stock"><?= $value('description') ?></textarea>
                 </label>
 
+                <label class="space-y-2">
+                    <span class="text-sm font-semibold text-slate-700">Date de fabrication</span>
+                    <input class="field-control" name="date_fabrication" type="date" value="<?= $value('date_fabrication') ?>">
+                </label>
+
+                <label class="space-y-2">
+                    <span class="text-sm font-semibold text-slate-700">Date d'expiration</span>
+                    <input class="field-control" name="date_expiration" type="date" value="<?= $value('date_expiration') ?>">
+                </label>
+
                 <label class="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 lg:col-span-2">
                     <span>
                         <span class="block text-sm font-semibold text-slate-900">Produit actif</span>
@@ -126,6 +166,20 @@ $icon = static function (string $name): string {
                 <div class="mt-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                     <span class="text-sm text-slate-500"><?= $stock ?> en stock</span>
                     <span class="rounded-full px-3 py-1 text-xs font-bold <?= $stockStatusClass ?>"><?= $stockStatus ?></span>
+                </div>
+            </section>
+
+            <section class="surface-panel">
+                <div class="flex items-start gap-3">
+                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-orange-50 text-orange-700"><?= $icon('alert') ?></span>
+                    <div>
+                        <h2 class="font-bold text-slate-950">Expiration</h2>
+                        <p class="mt-1 text-sm text-slate-500">Une alerte est affichee 30 jours avant la date d'expiration.</p>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <span class="text-sm text-slate-500"><?= $value('date_expiration', 'Non definie') ?></span>
+                    <span class="rounded-full px-3 py-1 text-xs font-bold <?= $expirationStatusClass ?>"><?= htmlspecialchars($expirationStatus, ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
             </section>
 

@@ -156,6 +156,7 @@ $icon = static function (string $name): string {
                     <div class="signal-row"><span class="text-slate-500">Produits actifs</span><strong><?= (int) ($stockStats['active_products'] ?? 0) ?></strong></div>
                     <div class="signal-row"><span class="text-slate-500">Unités en stock</span><strong><?= (int) ($stockStats['units'] ?? 0) ?></strong></div>
                     <div class="signal-row"><span class="text-slate-500">Alertes</span><strong class="text-amber-700"><?= (int) ($stockStats['stock_alerts'] ?? 0) ?></strong></div>
+                    <div class="signal-row"><span class="text-slate-500">Alertes expiration</span><strong class="text-orange-700"><?= (int) ($stockStats['expiration_alerts'] ?? 0) ?></strong></div>
                     <div class="signal-row"><span class="text-slate-500">Ruptures</span><strong class="text-red-700"><?= (int) ($stockStats['ruptures'] ?? 0) ?></strong></div>
                 </div>
             </section>
