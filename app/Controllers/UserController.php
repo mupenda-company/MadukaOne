@@ -34,6 +34,67 @@ class UserController
         ]);
     }
 
+    public function create(array $params = []): void
+    {
+        $this->startSession();
+
+        $currentUser = $this->currentUser();
+        $shops = $this->shops();
+        $activeShop = $this->activeShop($shops, $currentUser);
+        $inviteSuccess = $_SESSION['invite_success'] ?? null;
+        unset($_SESSION['invite_success']);
+
+        $this->render('admin/users/create', [
+            'pageTitle' => 'Nouvel employe',
+            'currentUser' => $currentUser,
+            'shops' => $shops,
+            'activeShop' => $activeShop,
+            'activeMenu' => 'users',
+            'roles' => $this->employeeRoles(),
+            'inviteSuccess' => is_array($inviteSuccess) ? $inviteSuccess : null,
+        ]);
+    }
+
+    public function store(array $params = []): void
+    {
+        $this->startSession();
+
+        try {
+            $nom = trim((string) ($_POST['nom'] ?? ''));
+            $prenom = trim((string) ($_POST['prenom'] ?? ''));
+            $roleId = (int) ($_POST['role_id'] ?? 0);
+            $shopId = (int) ($_SESSION['shop_id'] ?? $_SESSION['user']['shop_id'] ?? 0);
+
+            if ($shopId < 1) {
+                $shopId = (int) ($_SESSION['current_shop_id'] ?? 0);
+            }
+
+            if ($nom === '' || $prenom === '' || $roleId < 1 || $shopId < 1) {
+                $this->flashError('Veuillez renseigner le prenom, le nom et le role.');
+                $this->redirect('/users/create');
+            }
+
+            $invitationCode = $this->generateInvitationCode();
+            $this->users->createWithInvitation([
+                'nom' => $nom,
+                'prenom' => $prenom,
+                'role_id' => $roleId,
+                'shop_id' => $shopId,
+                'invitation_code' => $invitationCode,
+            ]);
+
+            $_SESSION['invite_success'] = [
+                'message' => 'Employe cree avec succes. Code d invitation : ' . $invitationCode,
+                'code' => $invitationCode,
+            ];
+
+            $this->redirect('/users/create');
+        } catch (Throwable $exception) {
+            $this->flashError('Creation impossible. Verifiez les informations puis reessayez.');
+            $this->redirect('/users/create');
+        }
+    }
+
     public function profile(array $params = []): void
     {
         $this->startSession();
@@ -81,6 +142,55 @@ class UserController
         $content = (string) ob_get_clean();
 
         require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    private function employeeRoles(): array
+    {
+        try {
+            $statement = Database::connection()->query(
+                "SELECT id, nom FROM roles WHERE LOWER(nom) IN ('caissier', 'agent', 'vendeur', 'gerant', 'gérant', 'manager') ORDER BY nom ASC"
+            );
+            $roles = $statement->fetchAll();
+
+            if (is_array($roles) && $roles !== []) {
+                return $roles;
+            }
+        } catch (Throwable) {
+        }
+
+        return [
+            ['id' => 2, 'nom' => 'Gerant'],
+            ['id' => 3, 'nom' => 'Caissier'],
+        ];
+    }
+
+    private function generateInvitationCode(): string
+    {
+        do {
+            $code = 'INV-' . strtoupper(bin2hex(random_bytes(3)));
+            $exists = $this->users->verifyInvitationCode($code) !== null;
+        } while ($exists);
+
+        return $code;
+    }
+
+    private function flashSuccess(string $message): void
+    {
+        $_SESSION['flash_success'] = $message;
+    }
+
+    private function flashError(string $message): void
+    {
+        $_SESSION['flash_error'] = $message;
+    }
+
+    private function redirect(string $path): never
+    {
+        $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+        $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
+
+        header('Location: ' . $basePath . '/' . ltrim($path, '/'), true, 302);
+        exit;
     }
 
     private function currentUser(): array

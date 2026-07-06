@@ -108,6 +108,24 @@ $createShopUrl = htmlspecialchars($basePath . '/shops/create', ENT_QUOTES, 'UTF-
                         </div>
                     <?php endif; ?>
 
+                    <form class="mb-5 space-y-3 rounded-lg border border-teal-100 bg-teal-50/70 p-4" method="post" action="<?= htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8') ?>/activate-account" accept-charset="UTF-8">
+                        <label class="block text-sm font-semibold text-slate-800" for="invitation_code">Code d'invitation agent</label>
+                        <div class="flex flex-col gap-3 sm:flex-row">
+                            <input
+                                class="field-control sm:flex-1"
+                                id="invitation_code"
+                                name="invitation_code"
+                                type="text"
+                                autocomplete="one-time-code"
+                                placeholder="Ex: AGT-2026"
+                                required
+                            >
+                            <button class="btn-primary sm:w-auto" type="submit">
+                                Activer
+                            </button>
+                        </div>
+                    </form>
+
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <a class="btn-social" href="<?= htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8') ?>/auth/google" aria-label="Connexion avec Google">
                             <span class="grid h-6 w-6 place-items-center rounded-full border border-slate-200 text-sm font-black text-blue-600">G</span>

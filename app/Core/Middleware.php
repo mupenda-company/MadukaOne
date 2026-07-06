@@ -26,6 +26,7 @@ final class Middleware
     public static function auth(string $path, string $method, array $params = []): void
     {
         self::startSession();
+        self::sendNoStoreHeaders();
 
         if (empty($_SESSION['user']) || !is_array($_SESSION['user'])) {
             self::redirect('/login');
@@ -35,6 +36,7 @@ final class Middleware
     public static function guest(string $path, string $method, array $params = []): void
     {
         self::startSession();
+        self::sendNoStoreHeaders();
 
         if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
             self::redirect(self::isAgent() ? '/pos' : '/');
@@ -118,5 +120,13 @@ final class Middleware
                 'use_strict_mode' => true,
             ]);
         }
+    }
+
+    private static function sendNoStoreHeaders(): void
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Cache-Control: post-check=0, pre-check=0', false);
+        header('Pragma: no-cache');
+        header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
     }
 }

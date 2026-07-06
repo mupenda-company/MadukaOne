@@ -61,12 +61,9 @@ final class AuthController
 
     public function googleCallback(array $params = []): void
     {
-        $this->handleOAuthCallback(
+        $this->handleSocialCallback(
             provider: 'google',
-            idColumn: 'google_id',
             tokenEndpoint: 'https://oauth2.googleapis.com/token',
-            jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
-            issuers: ['accounts.google.com', 'https://accounts.google.com'],
             clientIdEnv: 'GOOGLE_CLIENT_ID',
             clientSecretEnv: 'GOOGLE_CLIENT_SECRET',
             redirectUriEnv: 'GOOGLE_REDIRECT_URI'
@@ -75,12 +72,9 @@ final class AuthController
 
     public function appleCallback(array $params = []): void
     {
-        $this->handleOAuthCallback(
+        $this->handleSocialCallback(
             provider: 'apple',
-            idColumn: 'apple_id',
             tokenEndpoint: 'https://appleid.apple.com/auth/token',
-            jwksUrl: 'https://appleid.apple.com/auth/keys',
-            issuers: ['https://appleid.apple.com'],
             clientIdEnv: 'APPLE_CLIENT_ID',
             clientSecretEnv: 'APPLE_CLIENT_SECRET',
             redirectUriEnv: 'APPLE_REDIRECT_URI'
@@ -131,65 +125,169 @@ final class AuthController
         );
     }
 
-    private function handleOAuthCallback(
+    public function activateAccount(array $params = []): void
+    {
+        try {
+            $this->sendNoStoreHeaders();
+            $this->startSession();
+
+            $code = trim((string) ($_POST['invitation_code'] ?? $_POST['code'] ?? ''));
+
+            if ($code === '') {
+                $this->flash('Veuillez saisir votre code d invitation.');
+                $this->redirect('/login');
+            }
+
+            $user = $this->users->findPendingActivationByCode($code);
+
+            if ($user === null) {
+                $this->flash('Code d invitation invalide ou deja utilise.');
+                $this->redirect('/login');
+            }
+
+            $_SESSION['pending_activation_id'] = (int) $user['id'];
+
+            $this->redirectToOAuthProvider(
+                authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+                clientIdEnv: 'GOOGLE_CLIENT_ID',
+                redirectUriEnv: 'GOOGLE_REDIRECT_URI',
+                scope: 'openid email profile'
+            );
+        } catch (Throwable $exception) {
+            unset($_SESSION['pending_activation_id']);
+            $this->flash('Activation impossible. Veuillez verifier votre code.');
+            $this->redirect('/login');
+        }
+    }
+
+    public function activate(array $params = []): void
+    {
+        $this->sendNoStoreHeaders();
+        $this->startSession();
+
+        $flashError = $_SESSION['flash_error'] ?? null;
+        unset($_SESSION['flash_error']);
+
+        require dirname(__DIR__) . '/Views/auth/activate.php';
+    }
+
+    public function activateWithCode(array $params = []): void
+    {
+        try {
+            $this->sendNoStoreHeaders();
+            $this->startSession();
+
+            $code = trim((string) ($_POST['invitation_code'] ?? ''));
+
+            if ($code === '') {
+                $this->flash('Veuillez saisir votre code d invitation.');
+                $this->redirect('/activate');
+            }
+
+            $user = $this->users->verifyInvitationCode($code);
+
+            if ($user === null) {
+                $this->flash('Code d invitation invalide ou deja utilise.');
+                $this->redirect('/activate');
+            }
+
+            $_SESSION['pending_activation_id'] = (int) $user['id'];
+
+            $this->redirectToOAuthProvider(
+                authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+                clientIdEnv: 'GOOGLE_CLIENT_ID',
+                redirectUriEnv: 'GOOGLE_REDIRECT_URI',
+                scope: 'openid email profile'
+            );
+        } catch (Throwable $exception) {
+            unset($_SESSION['pending_activation_id']);
+            $this->flash('Activation impossible. Veuillez reessayer.');
+            $this->redirect('/activate');
+        }
+    }
+
+    private function handleSocialCallback(
         string $provider,
-        string $idColumn,
         string $tokenEndpoint,
-        string $jwksUrl,
-        array $issuers,
         string $clientIdEnv,
         string $clientSecretEnv,
         string $redirectUriEnv
     ): void {
         try {
+            $this->sendNoStoreHeaders();
             $this->validateOAuthState();
-            $idToken = (string) ($_POST['id_token'] ?? $_GET['id_token'] ?? '');
-            $code = (string) ($_POST['code'] ?? $_GET['code'] ?? '');
 
-            if ($idToken === '' && $code !== '') {
-                $idToken = $this->exchangeCodeForIdToken(
-                    tokenEndpoint: $tokenEndpoint,
-                    code: $code,
-                    clientId: $this->requiredEnv($clientIdEnv),
-                    clientSecret: $this->requiredEnv($clientSecretEnv),
-                    redirectUri: $this->requiredEnv($redirectUriEnv)
-                );
+            $code = trim((string) ($_GET['code'] ?? $_POST['code'] ?? ''));
+
+            if ($code === '') {
+                throw new RuntimeException('Code OAuth manquant.');
             }
 
-            if ($idToken === '') {
-                throw new RuntimeException('Aucun jeton OAuth reçu.');
-            }
-
-            $claims = $this->verifyIdToken(
-                jwt: $idToken,
-                jwksUrl: $jwksUrl,
-                issuers: $issuers,
-                audience: $this->requiredEnv($clientIdEnv)
+            $idToken = $this->exchangeAuthorizationCode(
+                tokenEndpoint: $tokenEndpoint,
+                code: $code,
+                clientId: $clientId = $this->requiredEnv($clientIdEnv),
+                clientSecret: $this->requiredEnv($clientSecretEnv),
+                redirectUri: $this->requiredEnv($redirectUriEnv)
             );
+            $claims = $this->decodeJwtPayload($idToken);
+            $audience = $claims['aud'] ?? null;
 
-            $providerId = (string) ($claims['sub'] ?? '');
-            $email = filter_var((string) ($claims['email'] ?? ''), FILTER_VALIDATE_EMAIL);
-
-            if ($providerId === '' || $email === false) {
-                throw new RuntimeException('Profil OAuth incomplet.');
+            if (is_array($audience) ? !in_array($clientId, $audience, true) : (string) $audience !== $clientId) {
+                throw new RuntimeException('Audience OAuth invalide.');
             }
 
-            $user = $this->findOAuthUser($idColumn, $providerId, $email);
+            $socialId = trim((string) ($claims['sub'] ?? ''));
+            $email = filter_var(strtolower(trim((string) ($claims['email'] ?? ''))), FILTER_VALIDATE_EMAIL);
+
+            if ($socialId === '') {
+                throw new RuntimeException('Identifiant social manquant.');
+            }
+
+            if ($provider === 'google' && isset($_SESSION['pending_activation_id'])) {
+                $pendingActivationId = (int) $_SESSION['pending_activation_id'];
+
+                if ($pendingActivationId < 1 || $email === false) {
+                    throw new RuntimeException('Activation Google incomplete.');
+                }
+
+                $user = $this->users->activateGoogleAccount($pendingActivationId, $email, $socialId);
+                unset($_SESSION['pending_activation_id']);
+
+                if ($user === null) {
+                    throw new RuntimeException('Activation Google refusee.');
+                }
+
+                $this->startAuthenticatedSession($user);
+                $this->touchLastLogin((int) $user['id']);
+                $this->redirectAfterLogin($user);
+            }
+
+            $user = $this->users->findBySocialId($provider, $socialId);
+
+            if ($user === null && $email !== false) {
+                $user = $this->findUserByEmail($email);
+
+                if ($user !== null) {
+                    if (!$this->users->linkSocialAccount((int) $user['id'], $provider, $socialId)) {
+                        throw new RuntimeException('Compte social deja lie.');
+                    }
+
+                    $user = $this->users->findById((int) $user['id']) ?? $user;
+                }
+            }
 
             if ($user === null) {
-                $this->flash('Compte introuvable. Demandez à l administrateur de lier votre compte ' . ucfirst($provider) . '.');
+                $this->flash('Aucun compte associe a cette identite. Veuillez contacter votre administrateur.');
                 $this->redirect('/login');
             }
-
-            $this->linkProviderIfNeeded((int) $user['id'], $provider, $idColumn, $providerId, $claims);
-            $user[$idColumn] = $providerId;
-            $user['auth_provider'] = $provider;
 
             $this->startAuthenticatedSession($user);
             $this->touchLastLogin((int) $user['id']);
             $this->redirectAfterLogin($user);
         } catch (Throwable $exception) {
-            $this->flash('Connexion ' . ucfirst($provider) . ' impossible.');
+            unset($_SESSION['pending_activation_id']);
+            $this->flash('Connexion ' . ucfirst($provider) . ' impossible. Veuillez reessayer.');
             $this->redirect('/login');
         }
     }
@@ -232,6 +330,103 @@ final class AuthController
     {
         $avatarUrl = isset($claims['picture']) && is_string($claims['picture']) ? $claims['picture'] : null;
         $this->users->linkProviderIfNeeded($userId, $provider, $idColumn, $providerId, $avatarUrl);
+    }
+
+    private function exchangeAuthorizationCode(
+        string $tokenEndpoint,
+        string $code,
+        string $clientId,
+        string $clientSecret,
+        string $redirectUri
+    ): string {
+        $response = $this->postForm($tokenEndpoint, [
+            'grant_type' => 'authorization_code',
+            'code' => $code,
+            'client_id' => $clientId,
+            'client_secret' => $clientSecret,
+            'redirect_uri' => $redirectUri,
+        ]);
+
+        $data = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+
+        if (!is_array($data) || empty($data['id_token']) || !is_string($data['id_token'])) {
+            throw new RuntimeException('Jeton OAuth id_token manquant.');
+        }
+
+        return $data['id_token'];
+    }
+
+    private function postForm(string $url, array $payload): string
+    {
+        $body = http_build_query($payload);
+
+        if (function_exists('curl_init')) {
+            $curl = curl_init($url);
+
+            if ($curl === false) {
+                throw new RuntimeException('Initialisation cURL impossible.');
+            }
+
+            curl_setopt_array($curl, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $body,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+            ]);
+
+            $response = curl_exec($curl);
+            $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+            $error = curl_error($curl);
+            curl_close($curl);
+
+            if (!is_string($response) || $response === '' || $status < 200 || $status >= 300) {
+                throw new RuntimeException($error !== '' ? $error : 'Echange OAuth refuse par le fournisseur.');
+            }
+
+            return $response;
+        }
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+                'content' => $body,
+                'timeout' => 20,
+            ],
+        ]);
+
+        $response = file_get_contents($url, false, $context);
+
+        if (!is_string($response) || $response === '') {
+            throw new RuntimeException('Echange OAuth impossible.');
+        }
+
+        return $response;
+    }
+
+    private function decodeJwtPayload(string $jwt): array
+    {
+        [$header64, $payload64, $signature64] = array_pad(explode('.', $jwt), 3, '');
+
+        if ($header64 === '' || $payload64 === '' || $signature64 === '') {
+            throw new RuntimeException('Format JWT invalide.');
+        }
+
+        $payload = json_decode($this->base64UrlDecode($payload64), true, 512, JSON_THROW_ON_ERROR);
+
+        if (!is_array($payload)) {
+            throw new RuntimeException('Payload JWT invalide.');
+        }
+
+        if ((int) ($payload['exp'] ?? 0) < time()) {
+            throw new RuntimeException('Jeton OAuth expire.');
+        }
+
+        return $payload;
     }
 
     private function exchangeCodeForIdToken(
@@ -424,19 +619,26 @@ final class AuthController
         string $scope,
         array $extra = []
     ): void {
-        $this->startSession();
-        $state = bin2hex(random_bytes(32));
-        $_SESSION['oauth_state'] = $state;
+        try {
+            $this->startSession();
+            $state = bin2hex(random_bytes(32));
+            $_SESSION['oauth_state'] = $state;
 
-        $query = http_build_query(array_merge([
-            'client_id' => $this->requiredEnv($clientIdEnv),
-            'redirect_uri' => $this->requiredEnv($redirectUriEnv),
-            'response_type' => 'code',
-            'scope' => $scope,
-            'state' => $state,
-        ], $extra));
+            $query = http_build_query(array_merge([
+                'client_id' => $this->requiredEnv($clientIdEnv),
+                'redirect_uri' => $this->requiredEnv($redirectUriEnv),
+                'response_type' => 'code',
+                'scope' => $scope,
+                'state' => $state,
+            ], $extra));
 
-        $this->redirect($authorizationUrl . '?' . $query);
+            $this->redirect($authorizationUrl . '?' . $query);
+        } catch (Throwable $exception) {
+            unset($_SESSION['oauth_state']);
+            unset($_SESSION['pending_activation_id']);
+            $this->flash('Connexion sociale indisponible : configuration OAuth incomplete.');
+            $this->redirect('/login');
+        }
     }
 
     private function validateOAuthState(): void
