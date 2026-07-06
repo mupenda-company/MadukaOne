@@ -72,11 +72,13 @@
   }
 
   .app-sidebar {
-    @apply fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-slate-950 text-slate-200 shadow-2xl shadow-slate-950/30 transition-[width,transform] duration-200 lg:translate-x-0;
+    @apply fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-slate-950 text-slate-200 shadow-2xl shadow-slate-950/30 transition-[width,transform] duration-300 ease-out lg:translate-x-0;
+    will-change: transform;
   }
 
   .sidebar-overlay {
-    @apply fixed inset-0 z-40 hidden bg-slate-950/45 backdrop-blur-sm;
+    @apply pointer-events-none invisible fixed inset-0 z-40 bg-slate-950/45 opacity-0 backdrop-blur-sm;
+    transition: opacity .3s ease, visibility 0s linear .3s;
   }
 
   .is-sidebar-open .app-sidebar {
@@ -84,7 +86,8 @@
   }
 
   .is-sidebar-open .sidebar-overlay {
-    @apply block lg:hidden;
+    @apply pointer-events-auto visible opacity-100 lg:pointer-events-none lg:invisible lg:opacity-0;
+    transition-delay: 0s;
   }
 
   .is-sidebar-collapsed {
@@ -125,17 +128,21 @@
   }
 
   .shop-switcher {
-    @apply inline-flex h-10 max-w-[13rem] items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:max-w-[18rem];
+    @apply inline-flex h-10 max-w-[8.5rem] items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:max-w-[18rem];
   }
 
   .user-menu-trigger {
-    @apply inline-flex h-12 items-center gap-2 rounded-xl px-2 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200;
+    @apply inline-flex h-11 items-center gap-2 rounded-lg px-2 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:h-12 sm:rounded-xl;
   }
 
   .dropdown-panel {
     @apply pointer-events-none absolute top-12 z-50 w-80 translate-y-1 rounded-xl border border-slate-200 bg-white opacity-0 shadow-2xl shadow-slate-950/10 transition;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100vh - 5rem);
+    overflow-y: auto;
   }
 
+  .shop-menu.is-open .dropdown-panel,
   .user-menu.is-open .dropdown-panel {
     @apply pointer-events-auto translate-y-0 opacity-100;
   }
@@ -158,6 +165,48 @@
 
   .dropdown-item.is-active {
     @apply bg-teal-50 text-teal-800;
+  }
+
+  @media (max-width: 639px) {
+    .app-topbar {
+      @apply z-40;
+    }
+
+    .topbar-row {
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .topbar-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: calc(100vw - 10.5rem);
+    }
+
+    .topbar-actions {
+      flex: 0 0 auto;
+      min-width: 0;
+    }
+
+    .shop-switcher {
+      max-width: 7.25rem;
+      padding-inline: .625rem;
+    }
+
+    .user-menu-trigger {
+      padding-inline: .25rem;
+    }
+
+    .shop-menu .dropdown-panel,
+    .user-menu .dropdown-panel {
+      position: fixed;
+      top: 4.25rem;
+      right: 1rem;
+      left: 1rem;
+      width: auto;
+      max-width: none;
+      max-height: calc(100vh - 5.25rem);
+    }
   }
 
   .dashboard-hero {

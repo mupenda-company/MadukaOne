@@ -10,6 +10,10 @@ abstract class AppController
     {
         $this->startSession();
 
+        if (!headers_sent()) {
+            header('Content-Type: text/html; charset=UTF-8');
+        }
+
         $currentUser = $data['currentUser'] ?? $this->currentUser();
         $shops = $data['shops'] ?? $this->shops();
         $activeShop = $data['activeShop'] ?? $this->activeShop($shops, $currentUser);

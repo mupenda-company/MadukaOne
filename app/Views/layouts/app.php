@@ -64,6 +64,9 @@ $url = static function (string $path, array $query = []) use ($basePath): string
         const sidebarToggles = document.querySelectorAll('[data-sidebar-toggle]');
         const sidebarClose = document.querySelector('[data-sidebar-close]');
         const sidebarOverlay = document.querySelector('[data-sidebar-overlay]');
+        const shopMenu = document.querySelector('[data-shop-menu]');
+        const shopMenuToggle = document.querySelector('[data-shop-menu-toggle]');
+        const shopMenuPanel = document.querySelector('[data-shop-menu-panel]');
         const userMenu = document.querySelector('[data-user-menu]');
         const userMenuToggle = document.querySelector('[data-user-menu-toggle]');
         const userMenuPanel = document.querySelector('[data-user-menu-panel]');
@@ -77,6 +80,23 @@ $url = static function (string $path, array $query = []) use ($basePath): string
         let pendingConfirmTarget = null;
 
         const closeMobileSidebar = () => shell?.classList.remove('is-sidebar-open');
+        const closeShopMenu = () => {
+            shopMenu?.classList.remove('is-open');
+            shopMenuToggle?.setAttribute('aria-expanded', 'false');
+        };
+        const toggleShopMenu = () => {
+            const willOpen = !shopMenu?.classList.contains('is-open');
+
+            closeUserMenu();
+            shopMenu?.classList.toggle('is-open', willOpen);
+            shopMenuToggle?.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
+            if (willOpen) {
+                window.setTimeout(() => {
+                    shopMenuPanel?.querySelector('a, button')?.focus({ preventScroll: true });
+                }, 0);
+            }
+        };
         const closeUserMenu = () => {
             userMenu?.classList.remove('is-open');
             userMenuToggle?.setAttribute('aria-expanded', 'false');
@@ -85,8 +105,15 @@ $url = static function (string $path, array $query = []) use ($basePath): string
         const toggleUserMenu = () => {
             const willOpen = !userMenu?.classList.contains('is-open');
 
+            closeShopMenu();
             userMenu?.classList.toggle('is-open', willOpen);
             userMenuToggle?.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
+            if (willOpen) {
+                window.setTimeout(() => {
+                    userMenuPanel?.querySelector('a, button')?.focus({ preventScroll: true });
+                }, 0);
+            }
         };
 
         const closeConfirmModal = () => {
@@ -148,6 +175,9 @@ $url = static function (string $path, array $query = []) use ($basePath): string
         }
 
         sidebarToggles.forEach((toggle) => toggle.addEventListener('click', () => {
+            closeShopMenu();
+            closeUserMenu();
+
             if (window.matchMedia('(min-width: 1024px)').matches) {
                 setSidebarCollapsed(!shell?.classList.contains('is-sidebar-collapsed'));
                 return;
@@ -158,6 +188,11 @@ $url = static function (string $path, array $query = []) use ($basePath): string
 
         sidebarClose?.addEventListener('click', closeMobileSidebar);
         sidebarOverlay?.addEventListener('click', closeMobileSidebar);
+        shopMenuToggle?.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleShopMenu();
+        });
         userMenuToggle?.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -165,6 +200,10 @@ $url = static function (string $path, array $query = []) use ($basePath): string
         });
 
         document.addEventListener('click', (event) => {
+            if (shopMenu && !shopMenu.contains(event.target)) {
+                closeShopMenu();
+            }
+
             if (userMenu && !userMenu.contains(event.target)) {
                 closeUserMenu();
             }
@@ -177,6 +216,7 @@ $url = static function (string $path, array $query = []) use ($basePath): string
 
             event.preventDefault();
             event.stopPropagation();
+            closeShopMenu();
             closeUserMenu();
 
             const form = trigger.closest('form');
@@ -224,8 +264,14 @@ $url = static function (string $path, array $query = []) use ($basePath): string
             }
         });
         document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && shopMenu?.classList.contains('is-open')) {
+                closeShopMenu();
+                shopMenuToggle?.focus();
+            }
+
             if (event.key === 'Escape' && userMenu?.classList.contains('is-open')) {
                 closeUserMenu();
+                userMenuToggle?.focus();
             }
 
             if (event.key === 'Escape' && confirmModal && !confirmModal.classList.contains('hidden')) {
