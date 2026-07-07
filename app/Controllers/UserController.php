@@ -21,7 +21,7 @@ class UserController
         $currentUser = $this->currentUser();
         $shops = $this->shops();
         $activeShop = $this->activeShop($shops, $currentUser);
-        $users = $this->users->allForSuperAdmin(false);
+        $users = $this->users->allByShop($this->currentShopId(), false);
 
         $this->render('users/index', [
             'pageTitle' => 'Utilisateurs',
@@ -41,8 +41,6 @@ class UserController
         $currentUser = $this->currentUser();
         $shops = $this->shops();
         $activeShop = $this->activeShop($shops, $currentUser);
-        $inviteSuccess = $_SESSION['invite_success'] ?? null;
-        unset($_SESSION['invite_success']);
 
         $this->render('admin/users/create', [
             'pageTitle' => 'Nouvel employe',
@@ -51,7 +49,6 @@ class UserController
             'activeShop' => $activeShop,
             'activeMenu' => 'users',
             'roles' => $this->employeeRoles(),
-            'inviteSuccess' => is_array($inviteSuccess) ? $inviteSuccess : null,
         ]);
     }
 
@@ -63,10 +60,10 @@ class UserController
             $nom = trim((string) ($_POST['nom'] ?? ''));
             $prenom = trim((string) ($_POST['prenom'] ?? ''));
             $roleId = (int) ($_POST['role_id'] ?? 0);
-            $shopId = (int) ($_SESSION['shop_id'] ?? $_SESSION['user']['shop_id'] ?? 0);
+            $shopId = (int) ($_SESSION['shop_id'] ?? 0);
 
             if ($shopId < 1) {
-                $shopId = (int) ($_SESSION['current_shop_id'] ?? 0);
+                $shopId = (int) ($_SESSION['user']['shop_id'] ?? $_SESSION['current_shop_id'] ?? 0);
             }
 
             if ($nom === '' || $prenom === '' || $roleId < 1 || $shopId < 1) {
@@ -75,7 +72,7 @@ class UserController
             }
 
             $invitationCode = $this->generateInvitationCode();
-            $this->users->createWithInvitation([
+            $created = $this->users->createWithInvitation([
                 'nom' => $nom,
                 'prenom' => $prenom,
                 'role_id' => $roleId,
@@ -83,15 +80,108 @@ class UserController
                 'invitation_code' => $invitationCode,
             ]);
 
-            $_SESSION['invite_success'] = [
-                'message' => 'Employe cree avec succes. Code d invitation : ' . $invitationCode,
-                'code' => $invitationCode,
-            ];
+            if (!$created) {
+                throw new RuntimeException('Insertion employe echouee.');
+            }
 
+            $_SESSION['flash']['success_code'] = $invitationCode;
             $this->redirect('/users/create');
-        } catch (Throwable $exception) {
+        } catch (Throwable) {
             $this->flashError('Creation impossible. Verifiez les informations puis reessayez.');
             $this->redirect('/users/create');
+        }
+    }
+
+    public function edit(array $params = []): void
+    {
+        $this->startSession();
+
+        $id = (int) ($params['id'] ?? 0);
+        $shopId = $this->currentShopId();
+        $user = $this->users->findByIdAndShop($id, $shopId);
+
+        if ($user === null) {
+            $this->flashError('Utilisateur introuvable pour cette boutique.');
+            $this->redirect('/users');
+        }
+
+        $currentUser = $this->currentUser();
+        $shops = $this->shops();
+        $activeShop = $this->activeShop($shops, $currentUser);
+
+        $this->render('admin/users/edit', [
+            'pageTitle' => 'Modifier un employe',
+            'currentUser' => $currentUser,
+            'shops' => $shops,
+            'activeShop' => $activeShop,
+            'activeMenu' => 'users',
+            'roles' => $this->employeeRoles(),
+            'user' => $user,
+        ]);
+    }
+
+    public function update(array $params = []): void
+    {
+        $this->startSession();
+
+        $id = (int) ($params['id'] ?? 0);
+        $shopId = $this->currentShopId();
+
+        try {
+            $user = $this->users->findByIdAndShop($id, $shopId);
+
+            if ($user === null) {
+                $this->flashError('Utilisateur introuvable pour cette boutique.');
+                $this->redirect('/users');
+            }
+
+            $nom = trim((string) ($_POST['nom'] ?? ''));
+            $prenom = trim((string) ($_POST['prenom'] ?? ''));
+            $roleId = (int) ($_POST['role_id'] ?? 0);
+
+            if ($nom === '' || $prenom === '' || $roleId < 1) {
+                $this->flashError('Veuillez renseigner le prenom, le nom et le role.');
+                $this->redirect('/admin/users/edit/' . $id);
+            }
+
+            $this->users->updateUser($id, [
+                'nom' => $nom,
+                'prenom' => $prenom,
+                'role_id' => $roleId,
+            ]);
+
+            $this->flashSuccess('Utilisateur modifie avec succes.');
+            $this->redirect('/users');
+        } catch (Throwable) {
+            $this->flashError('Modification impossible. Verifiez les informations puis reessayez.');
+            $this->redirect('/admin/users/edit/' . $id);
+        }
+    }
+
+    public function delete(array $params = []): void
+    {
+        $this->startSession();
+
+        $id = (int) ($params['id'] ?? 0);
+        $shopId = $this->currentShopId();
+
+        try {
+            $user = $this->users->findByIdAndShop($id, $shopId);
+
+            if ($user === null) {
+                $this->flashError('Utilisateur introuvable pour cette boutique.');
+                $this->redirect('/users');
+            }
+
+            if (!$this->users->deleteUser($id)) {
+                throw new RuntimeException('Suppression utilisateur echouee.');
+            }
+
+            $this->flashSuccess('Utilisateur supprime avec succes.');
+            $this->redirect('/users');
+        } catch (Throwable) {
+            $this->flashError('Suppression impossible. Cet utilisateur est peut-etre deja lie a des operations.');
+            $this->redirect('/users');
         }
     }
 
@@ -104,7 +194,7 @@ class UserController
         $activeShop = $this->activeShop($shops, $currentUser);
 
         $this->render('users/profile', [
-            'pageTitle' => 'Paramètres du profil',
+            'pageTitle' => 'Parametres du profil',
             'currentUser' => $currentUser,
             'shops' => $shops,
             'activeShop' => $activeShop,
@@ -146,32 +236,51 @@ class UserController
 
     private function employeeRoles(): array
     {
-        try {
-            $statement = Database::connection()->query(
-                "SELECT id, nom FROM roles WHERE LOWER(nom) IN ('caissier', 'agent', 'vendeur', 'gerant', 'gérant', 'manager') ORDER BY nom ASC"
-            );
-            $roles = $statement->fetchAll();
+        $fallback = [
+            ['id' => 3, 'nom' => 'Agent de caisse'],
+            ['id' => 2, 'nom' => 'Gerant'],
+        ];
 
-            if (is_array($roles) && $roles !== []) {
-                return $roles;
+        try {
+            $statement = Database::connection()->query('SELECT id, nom FROM roles ORDER BY id ASC');
+            $roles = $statement->fetchAll();
+            $agent = null;
+            $gerant = null;
+
+            foreach ((array) $roles as $role) {
+                $name = strtolower(trim((string) ($role['nom'] ?? '')));
+
+                if ($agent === null && in_array($name, ['caissier', 'agent', 'vendeur'], true)) {
+                    $agent = ['id' => (int) $role['id'], 'nom' => 'Agent de caisse'];
+                }
+
+                if ($gerant === null && in_array($name, ['gerant', 'manager'], true)) {
+                    $gerant = ['id' => (int) $role['id'], 'nom' => 'Gerant'];
+                }
+            }
+
+            if ($agent !== null && $gerant !== null) {
+                return [$agent, $gerant];
             }
         } catch (Throwable) {
         }
 
-        return [
-            ['id' => 2, 'nom' => 'Gerant'],
-            ['id' => 3, 'nom' => 'Caissier'],
-        ];
+        return $fallback;
     }
 
     private function generateInvitationCode(): string
     {
         do {
-            $code = 'INV-' . strtoupper(bin2hex(random_bytes(3)));
+            $code = 'MADUKA-' . strtoupper(bin2hex(random_bytes(3)));
             $exists = $this->users->verifyInvitationCode($code) !== null;
         } while ($exists);
 
         return $code;
+    }
+
+    private function flashError(string $message): void
+    {
+        $_SESSION['flash_error'] = $message;
     }
 
     private function flashSuccess(string $message): void
@@ -179,9 +288,21 @@ class UserController
         $_SESSION['flash_success'] = $message;
     }
 
-    private function flashError(string $message): void
+    private function currentShopId(): int
     {
-        $_SESSION['flash_error'] = $message;
+        $shopId = (int) ($_SESSION['shop_id'] ?? 0);
+
+        if ($shopId > 0) {
+            return $shopId;
+        }
+
+        $shopId = (int) ($_SESSION['user']['shop_id'] ?? 0);
+
+        if ($shopId > 0) {
+            return $shopId;
+        }
+
+        return (int) ($_SESSION['current_shop_id'] ?? 1);
     }
 
     private function redirect(string $path): never
@@ -297,4 +418,3 @@ class UserController
         }
     }
 }
-

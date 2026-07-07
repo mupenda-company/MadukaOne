@@ -61,9 +61,14 @@ $icon = static function (string $name): string {
                 Vue centralisee des comptes disponibles dans la table users, avec roles, boutiques et statut de connexion.
             </p>
         </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[.16em] text-slate-400">Source</p>
-            <p class="mt-1 font-bold text-slate-950">Table users</p>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <a class="btn-primary h-11 w-full px-5 sm:w-auto" href="<?= $url('/users/create') ?>">
+                Ajouter un employe
+            </a>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-[.16em] text-slate-400">Source</p>
+                <p class="mt-1 font-bold text-slate-950">Table users</p>
+            </div>
         </div>
     </div>
 
@@ -118,7 +123,9 @@ $icon = static function (string $name): string {
 
                 <?php foreach ($users as $user): ?>
                     <?php
-                    $name = (string) ($user['nom'] ?? 'Utilisateur');
+                    $name = trim((string) (($user['prenom'] ?? '') . ' ' . ($user['nom'] ?? '')));
+                    $name = $name !== '' ? $name : 'Utilisateur';
+                    $userId = (int) ($user['id'] ?? 0);
                     $email = (string) ($user['email'] ?? '');
                     $phone = (string) ($user['telephone'] ?? '');
                     $roleName = (string) ($user['role_name'] ?? $user['role_legacy'] ?? 'Agent');
@@ -134,7 +141,7 @@ $icon = static function (string $name): string {
                                 <span class="block truncate font-bold text-slate-950"><?= $safe($name) ?></span>
                                 <span class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
                                     <?= $icon('shield') ?>
-                                    ID <?= (int) ($user['id'] ?? 0) ?>
+                                    ID <?= $userId ?>
                                 </span>
                             </span>
                         </div>
@@ -185,24 +192,24 @@ $icon = static function (string $name): string {
                             >
                                 <?= $icon('eye') ?>
                             </button>
-                            <button
+                            <a
                                 class="grid h-9 w-9 place-items-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700 transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                                type="button"
+                                href="<?= $url('/admin/users/edit/' . $userId) ?>"
                                 title="Modifier l'utilisateur"
                                 aria-label="Modifier l'utilisateur <?= $safe($name) ?>"
-                                data-user-pending-action="Modification utilisateur"
                             >
                                 <?= $icon('edit') ?>
-                            </button>
-                            <button
-                                class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
-                                type="button"
-                                title="<?= $active ? 'Desactiver l utilisateur' : 'Utilisateur deja inactif' ?>"
-                                aria-label="<?= $active ? 'Desactiver l utilisateur ' . $safe($name) : 'Utilisateur deja inactif' ?>"
-                                data-user-pending-action="Desactivation utilisateur"
-                            >
-                                <?= $icon('ban') ?>
-                            </button>
+                            </a>
+                            <form method="post" action="<?= $url('/admin/users/delete/' . $userId) ?>" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')">
+                                <button
+                                    class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
+                                    type="submit"
+                                    title="Supprimer l'utilisateur"
+                                    aria-label="Supprimer l'utilisateur <?= $safe($name) ?>"
+                                >
+                                    <?= $icon('ban') ?>
+                                </button>
+                            </form>
                         </div>
                     </article>
                 <?php endforeach; ?>
@@ -264,7 +271,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var rows = Array.prototype.slice.call(page.querySelectorAll('[data-user-row]'));
     var previewModal = document.querySelector('[data-user-preview-modal]');
     var previewClose = document.querySelector('[data-user-preview-close]');
-    var pendingActions = Array.prototype.slice.call(page.querySelectorAll('[data-user-pending-action]'));
 
     var setPreviewText = function (key, value) {
         var target = document.querySelector('[data-user-preview-' + key + ']');
@@ -305,13 +311,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (event.target === previewModal) {
             closePreview();
         }
-    });
-
-    pendingActions.forEach(function (button) {
-        button.addEventListener('click', function () {
-            var label = button.getAttribute('data-user-pending-action') || 'Action utilisateur';
-            window.alert(label + ' : le bouton est pret cote interface. Il reste a raccorder la route backend.');
-        });
     });
 
     if (!input || rows.length === 0) {

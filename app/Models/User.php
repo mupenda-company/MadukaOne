@@ -51,6 +51,20 @@ final class User extends Model
         return is_array($user) ? $user : null;
     }
 
+    public function findByIdAndShop(int $id, int $shopId): ?array
+    {
+        $statement = Database::connection()->prepare(
+            $this->baseSelect() . ' WHERE users.id = :id AND users.shop_id = :shop_id LIMIT 1'
+        );
+        $statement->execute([
+            'id' => $id,
+            'shop_id' => $shopId,
+        ]);
+        $user = $statement->fetch();
+
+        return is_array($user) ? $user : null;
+    }
+
     public function findBySocialId(string $provider, string $socialId, bool $activeOnly = true): ?array
     {
         $column = $this->socialColumnForProvider($provider);
@@ -244,7 +258,7 @@ final class User extends Model
         ]);
     }
 
-    public function createWithInvitation(array $data): int
+    public function createWithInvitation(array $data): bool
     {
         $nom = trim((string) ($data['nom'] ?? ''));
         $prenom = trim((string) ($data['prenom'] ?? ''));
@@ -256,26 +270,28 @@ final class User extends Model
             throw new InvalidArgumentException('Donnees employe invalides.');
         }
 
-        $statement = Database::connection()->prepare(
-            "INSERT INTO users (
-                shop_id, role_id, prenom, nom, email, password_hash, auth_provider,
-                google_id, apple_id, invitation_code, role_legacy, actif
-             ) VALUES (
-                :shop_id, :role_id, :prenom, :nom, NULL, NULL, 'local',
-                NULL, NULL, :invitation_code, :role_legacy, 1
-             )"
-        );
+        try {
+            $statement = Database::connection()->prepare(
+                "INSERT INTO users (
+                    shop_id, role_id, prenom, nom, email, password_hash, auth_provider,
+                    google_id, apple_id, invitation_code, role_legacy, actif
+                 ) VALUES (
+                    :shop_id, :role_id, :prenom, :nom, NULL, NULL, 'local',
+                    NULL, NULL, :invitation_code, :role_legacy, 1
+                 )"
+            );
 
-        $statement->execute([
-            'shop_id' => $shopId,
-            'role_id' => $roleId,
-            'prenom' => $prenom,
-            'nom' => $nom,
-            'invitation_code' => $invitationCode,
-            'role_legacy' => $this->legacyRoleForRoleId($roleId),
-        ]);
-
-        return (int) Database::connection()->lastInsertId();
+            return $statement->execute([
+                'shop_id' => $shopId,
+                'role_id' => $roleId,
+                'prenom' => $prenom,
+                'nom' => $nom,
+                'invitation_code' => $invitationCode,
+                'role_legacy' => $this->legacyRoleForRoleId($roleId),
+            ]);
+        } catch (PDOException $exception) {
+            throw new RuntimeException('Creation employe impossible.', 0, $exception);
+        }
     }
 
     public function updateByShop(int $id, int $shopId, array $data): bool
@@ -299,6 +315,48 @@ final class User extends Model
             'id' => $id,
             'shop_id' => $shopId,
         ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function updateUser(int $id, array $data): bool
+    {
+        $nom = trim((string) ($data['nom'] ?? ''));
+        $prenom = trim((string) ($data['prenom'] ?? ''));
+        $roleId = $this->nullablePositiveInt($data['role_id'] ?? null);
+
+        if ($id < 1 || $nom === '' || $prenom === '' || $roleId === null) {
+            throw new InvalidArgumentException('Donnees utilisateur invalides.');
+        }
+
+        $statement = Database::connection()->prepare(
+            'UPDATE users
+             SET nom = :nom,
+                 prenom = :prenom,
+                 role_id = :role_id,
+                 role_legacy = :role_legacy
+             WHERE id = :id'
+        );
+
+        $statement->execute([
+            'nom' => $nom,
+            'prenom' => $prenom,
+            'role_id' => $roleId,
+            'role_legacy' => $this->legacyRoleForRoleId($roleId),
+            'id' => $id,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function deleteUser(int $id): bool
+    {
+        if ($id < 1) {
+            throw new InvalidArgumentException('Identifiant utilisateur invalide.');
+        }
+
+        $statement = Database::connection()->prepare('DELETE FROM users WHERE id = :id');
+        $statement->execute(['id' => $id]);
 
         return $statement->rowCount() > 0;
     }
