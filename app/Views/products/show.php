@@ -6,6 +6,10 @@ $stock = (int) ($product['quantite_stock'] ?? 0);
 $minStock = (int) ($product['alerte_stock_min'] ?? 0);
 $purchasePrice = (float) ($product['prix_achat'] ?? 0);
 $salePrice = (float) ($product['prix_vente'] ?? 0);
+$purchaseCurrency = in_array(($product['prix_achat_devise'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product['prix_achat_devise'] : 'USD';
+$saleCurrency = in_array(($product['prix_vente_devise'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product['prix_vente_devise'] : 'USD';
+$purchaseAmount = (float) ($product['prix_achat_montant'] ?? $purchasePrice);
+$saleAmount = (float) ($product['prix_vente_montant'] ?? $salePrice);
 $margin = $salePrice - $purchasePrice;
 $isActive = (int) ($product['actif'] ?? 1) === 1;
 
@@ -45,6 +49,15 @@ if ($expiresAt instanceof DateTimeImmutable) {
 }
 
 $formatMoney = static fn (float $value): string => number_format($value, 2, ',', ' ') . ' USD';
+$formatChosenMoney = static function (float $amount, string $currency, float $usd) use ($formatMoney): string {
+    $main = number_format($amount, 2, ',', ' ') . ' ' . $currency;
+
+    if ($currency === 'USD') {
+        return $main;
+    }
+
+    return $main . '<span class="mt-1 block text-sm font-semibold text-slate-500">' . $formatMoney($usd) . '</span>';
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 
 $icon = static function (string $name): string {
@@ -84,11 +97,11 @@ $icon = static function (string $name): string {
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <article class="stat-card">
             <p class="text-sm text-slate-500">Prix d'achat</p>
-            <p class="mt-2 text-2xl font-bold"><?= $formatMoney($purchasePrice) ?></p>
+            <p class="mt-2 text-2xl font-bold"><?= $formatChosenMoney($purchaseAmount, $purchaseCurrency, $purchasePrice) ?></p>
         </article>
         <article class="stat-card">
             <p class="text-sm text-slate-500">Prix de vente</p>
-            <p class="mt-2 text-2xl font-bold text-teal-700"><?= $formatMoney($salePrice) ?></p>
+            <p class="mt-2 text-2xl font-bold text-teal-700"><?= $formatChosenMoney($saleAmount, $saleCurrency, $salePrice) ?></p>
         </article>
         <article class="stat-card">
             <p class="text-sm text-slate-500">Marge unitaire</p>

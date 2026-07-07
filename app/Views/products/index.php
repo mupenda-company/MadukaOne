@@ -1,6 +1,8 @@
 <?php
 
 $products = is_array($products ?? null) ? $products : [];
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $activeProducts = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1));
 $stockAlerts = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1 && (int) $product['quantite_stock'] <= (int) $product['alerte_stock_min']));
 $stockBreaks = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1 && (int) $product['quantite_stock'] === 0));
@@ -18,6 +20,21 @@ $parseDate = static function ($value): ?DateTimeImmutable {
     return $date instanceof DateTimeImmutable ? $date : null;
 };
 $formatDate = static fn (?DateTimeImmutable $date): string => $date instanceof DateTimeImmutable ? $date->format('d/m/Y') : '-';
+$formatProductMoney = static function (array $product, string $type): string {
+    $usdField = $type === 'purchase' ? 'prix_achat' : 'prix_vente';
+    $amountField = $type === 'purchase' ? 'prix_achat_montant' : 'prix_vente_montant';
+    $currencyField = $type === 'purchase' ? 'prix_achat_devise' : 'prix_vente_devise';
+    $currency = in_array(($product[$currencyField] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product[$currencyField] : 'USD';
+    $amount = (float) ($product[$amountField] ?? $product[$usdField] ?? 0);
+    $usd = (float) ($product[$usdField] ?? 0);
+    $main = number_format($amount, 2, ',', ' ') . ' ' . $currency;
+
+    if ($currency === 'USD') {
+        return $main;
+    }
+
+    return $main . '<span class="mt-1 block text-xs font-medium text-slate-500">' . number_format($usd, 2, ',', ' ') . ' USD</span>';
+};
 $expirationAlerts = count(array_filter($products, static function (array $product) use ($parseDate, $today, $expirationLimit): bool {
     if ((int) ($product['actif'] ?? 1) !== 1) {
         return false;
@@ -209,8 +226,8 @@ $icon = static function (string $name): string {
                                 </div>
                             </td>
                             <td class="px-4 py-4 text-slate-600"><?= htmlspecialchars((string) $product['code_barre'], ENT_QUOTES, 'UTF-8') ?></td>
-                            <td class="px-4 py-4 font-semibold"><?= number_format((float) $product['prix_achat'], 2, ',', ' ') ?> USD</td>
-                            <td class="px-4 py-4 font-semibold"><?= number_format($salePrice, 2, ',', ' ') ?> USD</td>
+                            <td class="px-4 py-4 font-semibold"><?= $formatProductMoney($product, 'purchase') ?></td>
+                            <td class="px-4 py-4 font-semibold"><?= $formatProductMoney($product, 'sale') ?></td>
                             <td class="px-4 py-4">
                                 <span class="font-bold"><?= $stock ?></span>
                             </td>

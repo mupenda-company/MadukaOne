@@ -2,7 +2,18 @@
 
 $sales = is_array($sales ?? null) ? $sales : [];
 $salesSummary = is_array($salesSummary ?? null) ? $salesSummary : [];
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$salesCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$money = static function ($value) use ($salesCurrency, $exchangeRate): string {
+    $amount = (float) $value;
+
+    if ($salesCurrency === 'CDF') {
+        $amount *= $exchangeRate;
+    }
+
+    return number_format($amount, 2, ',', ' ') . ' ' . $salesCurrency;
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateLabel = static function ($value): string {
     $timestamp = strtotime((string) ($value ?? ''));
@@ -40,6 +51,9 @@ $icon = static function (string $name): string {
         <div>
             <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Vente</p>
             <h1 class="text-3xl font-bold tracking-normal text-slate-950">Toutes les ventes</h1>
+            <p class="mt-2 text-xs font-semibold text-slate-500">
+                Devise d'affichage: <?= htmlspecialchars($salesCurrency, ENT_QUOTES, 'UTF-8') ?> · 1 USD = <?= number_format($exchangeRate, 2, ',', ' ') ?> CDF
+            </p>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                 Suivez les tickets, les modes de paiement, les crédits et les ventes annulées de la boutique active.
             </p>

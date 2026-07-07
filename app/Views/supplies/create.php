@@ -2,6 +2,7 @@
 <?php
 $suppliers = is_array($suppliers ?? null) ? $suppliers : [];
 $products = is_array($products ?? null) ? $products : [];
+$selectedSupplierId = (int) ($selectedSupplierId ?? 0);
 ?>
 
 <section class="space-y-5">
@@ -16,6 +17,7 @@ $products = is_array($products ?? null) ? $products : [];
         <div class="hero-action-panel">
             <p class="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Total arrivage</p>
             <p class="mt-2 text-2xl font-bold text-slate-950" data-supply-total>0,00 USD</p>
+            <a class="btn-secondary mt-4 w-full" href="<?= $url('/supplies') ?>">Voir l’historique</a>
         </div>
     </div>
 
@@ -32,7 +34,8 @@ $products = is_array($products ?? null) ? $products : [];
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Fournisseur</span>
                     <select class="field-control" name="supplier_id">
                         <?php foreach ($suppliers as $supplier): ?>
-                            <option value="<?= (int) $supplier['id'] ?>"><?= htmlspecialchars((string) $supplier['nom'], ENT_QUOTES, 'UTF-8') ?></option>
+                            <?php $selected = (int) ($supplier['id'] ?? 0) === $selectedSupplierId; ?>
+                            <option value="<?= (int) $supplier['id'] ?>" <?= $selected ? 'selected' : '' ?>><?= htmlspecialchars((string) $supplier['nom'], ENT_QUOTES, 'UTF-8') ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>

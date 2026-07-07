@@ -88,10 +88,24 @@ class ExpenseController extends AppController
         return [
             'titre' => $_POST['titre'] ?? '',
             'description' => $_POST['description'] ?? null,
-            'montant' => $_POST['montant'] ?? 0,
+            'montant' => $this->amountToUsd($_POST['montant'] ?? 0),
             'categorie' => $_POST['categorie'] ?? 'autre',
             'date_depense' => $this->dateValue($_POST['date_depense'] ?? null),
         ];
+    }
+
+    private function amountToUsd(mixed $amount): float
+    {
+        $value = is_numeric($amount) ? (float) $amount : 0.0;
+        $shop = $this->activeShop($this->shops(), $this->currentUser());
+        $currency = in_array(($shop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $shop['devise_principale'] : 'USD';
+        $rate = (float) (($shop['taux_change_cdf'] ?? 2800) ?: 2800);
+
+        if ($currency === 'CDF') {
+            return round($value / max($rate, 0.0001), 2);
+        }
+
+        return round($value, 2);
     }
 
     private function dateValue(mixed $value): ?string

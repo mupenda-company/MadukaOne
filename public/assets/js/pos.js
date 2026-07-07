@@ -10,7 +10,13 @@
   const cart = new Map();
   let customers = [];
   let selectedCustomer = null;
-  const money = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD' });
+  const posCurrency = ['USD', 'CDF'].includes(root.dataset.posCurrency) ? root.dataset.posCurrency : 'USD';
+  const exchangeRateValue = Number(root.dataset.posExchangeRate || 2800);
+  const exchangeRate = exchangeRateValue > 0 ? exchangeRateValue : 2800;
+  const money = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: posCurrency, currencyDisplay: 'code' });
+  const displayAmount = (usdAmount) => (posCurrency === 'CDF' ? usdAmount * exchangeRate : usdAmount);
+  const inputAmountToUsd = (amount) => (posCurrency === 'CDF' ? amount / exchangeRate : amount);
+  const formatMoney = (usdAmount) => money.format(displayAmount(Number(usdAmount || 0)));
   const products = [...root.querySelectorAll('[data-pos-product]')];
   const cartTarget = root.querySelector('[data-pos-cart]');
   const emptyTarget = root.querySelector('[data-pos-empty]');
@@ -186,7 +192,7 @@
 
       const debt = document.createElement('span');
       debt.className = 'shrink-0 text-xs font-bold text-slate-400';
-      debt.textContent = money.format(Number(customer.dette_actuelle || 0));
+      debt.textContent = formatMoney(Number(customer.dette_actuelle || 0));
 
       button.append(label, debt);
       button.addEventListener('click', () => selectCustomer(customer));
@@ -240,7 +246,7 @@
 
   const buildSalePayload = () => {
     const paymentMethod = root.querySelector('[data-pos-payment]')?.value || 'cash';
-    const received = Number(receivedInput?.value || 0);
+    const received = inputAmountToUsd(Number(receivedInput?.value || 0));
 
     return {
       customer_id: selectedCustomer ? Number(selectedCustomer.id) : null,
@@ -291,7 +297,7 @@
         name.className = 'px-3 py-3';
         name.innerHTML = '<p class="font-bold text-slate-950"></p><p class="mt-1 text-xs text-slate-500"></p>';
         name.querySelector('p').textContent = item.name;
-        name.querySelectorAll('p')[1].textContent = `${item.ref || '-'} · ${money.format(item.price)}`;
+        name.querySelectorAll('p')[1].textContent = `${item.ref || '-'} · ${formatMoney(item.price)}`;
 
         const quantity = document.createElement('td');
         quantity.className = 'px-3 py-3 text-right font-semibold';
@@ -299,17 +305,17 @@
 
         const lineTotal = document.createElement('td');
         lineTotal.className = 'px-3 py-3 text-right font-bold text-slate-950';
-        lineTotal.textContent = money.format(item.price * item.quantity);
+        lineTotal.textContent = formatMoney(item.price * item.quantity);
 
         row.append(name, quantity, lineTotal);
         confirmItems.appendChild(row);
       });
     }
 
-    if (confirmTotal) confirmTotal.textContent = money.format(saleTotal);
-    if (confirmReceived) confirmReceived.textContent = money.format(received);
+    if (confirmTotal) confirmTotal.textContent = formatMoney(saleTotal);
+    if (confirmReceived) confirmReceived.textContent = formatMoney(received);
     if (confirmChange) {
-      confirmChange.textContent = money.format(diff);
+      confirmChange.textContent = formatMoney(diff);
       confirmChange.classList.toggle('text-red-700', diff < 0);
       confirmChange.classList.toggle('text-teal-700', diff >= 0);
     }
@@ -415,7 +421,7 @@
 
       const amount = document.createElement('strong');
       amount.className = 'text-sm text-slate-950';
-      amount.textContent = money.format(Number(sale.total_montant || 0));
+      amount.textContent = formatMoney(Number(sale.total_montant || 0));
 
       footer.append(count, amount);
       row.append(header, footer);
@@ -424,11 +430,11 @@
   };
 
   const updatePayment = () => {
-    const received = Number(receivedInput?.value || 0);
+    const received = inputAmountToUsd(Number(receivedInput?.value || 0));
     const diff = received - total();
 
     if (changeTarget) {
-      changeTarget.textContent = money.format(diff);
+      changeTarget.textContent = formatMoney(diff);
       changeTarget.classList.toggle('text-red-700', diff < 0);
       changeTarget.classList.toggle('text-teal-700', diff >= 0);
     }
@@ -462,14 +468,14 @@
         </div>
       `;
       row.querySelector('p').textContent = item.name;
-      row.querySelectorAll('p')[1].textContent = `${item.ref} · ${money.format(item.price)}`;
+      row.querySelectorAll('p')[1].textContent = `${item.ref} · ${formatMoney(item.price)}`;
       row.querySelector('[data-pos-qty]').textContent = item.quantity;
-      row.querySelector('[data-pos-line-total]').textContent = money.format(item.price * item.quantity);
+      row.querySelector('[data-pos-line-total]').textContent = formatMoney(item.price * item.quantity);
       cartTarget.appendChild(row);
     });
 
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    totalTarget.textContent = money.format(total());
+    totalTarget.textContent = formatMoney(total());
     countTarget.textContent = `${itemCount} article${itemCount > 1 ? 's' : ''}`;
     updatePayment();
   };
@@ -634,7 +640,7 @@
 
     const paymentMethod = root.querySelector('[data-pos-payment]')?.value || 'cash';
 
-    if ((paymentMethod === 'credit' || Number(receivedInput?.value || 0) < total()) && !selectedCustomer) {
+    if ((paymentMethod === 'credit' || inputAmountToUsd(Number(receivedInput?.value || 0)) < total()) && !selectedCustomer) {
       showMessage('Sélectionnez ou ajoutez un client pour une vente à crédit.');
       customerSearch?.focus();
       renderCustomerResults();
@@ -644,7 +650,7 @@
     const payload = {
       customer_id: selectedCustomer ? Number(selectedCustomer.id) : null,
       payment_method: paymentMethod,
-      amount_received: Number(receivedInput?.value || 0),
+      amount_received: inputAmountToUsd(Number(receivedInput?.value || 0)),
       total_amount: total(),
       items: [...cart.values()].map((item) => ({
         product_id: Number(item.id),

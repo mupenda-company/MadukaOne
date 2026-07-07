@@ -4,7 +4,18 @@ $customer = is_array($customer ?? null) ? $customer : [];
 $phone = trim((string) ($customer['telephone'] ?? ''));
 $email = trim((string) ($customer['email'] ?? ''));
 $debt = (float) ($customer['dette_actuelle'] ?? 0);
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$customerCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$money = static function ($value) use ($customerCurrency, $exchangeRate): string {
+    $amount = (float) $value;
+
+    if ($customerCurrency === 'CDF') {
+        $amount *= $exchangeRate;
+    }
+
+    return number_format($amount, 2, ',', ' ') . ' ' . $customerCurrency;
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $icon = static function (string $name): string {
     $paths = [

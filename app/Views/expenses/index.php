@@ -1,5 +1,20 @@
 
-<?php $expenses = is_array($expenses ?? null) ? $expenses : []; ?>
+<?php
+
+$expenses = is_array($expenses ?? null) ? $expenses : [];
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$expenseCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$money = static function ($value) use ($expenseCurrency, $exchangeRate): string {
+    $amount = (float) $value;
+
+    if ($expenseCurrency === 'CDF') {
+        $amount *= $exchangeRate;
+    }
+
+    return number_format($amount, 2, ',', ' ') . ' ' . $expenseCurrency;
+};
+?>
 
 <section class="space-y-5">
     <div class="dashboard-hero">
@@ -13,8 +28,9 @@
         <div class="hero-action-panel">
             <p class="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Dépenses visibles</p>
             <p class="mt-2 text-2xl font-bold text-slate-950">
-                <?= number_format(array_sum(array_map(static fn (array $expense): float => (float) $expense['montant'], $expenses)), 2, ',', ' ') ?> USD
+                <?= $money(array_sum(array_map(static fn (array $expense): float => (float) $expense['montant'], $expenses))) ?>
             </p>
+            <p class="mt-1 text-xs font-semibold text-slate-500">1 USD = <?= number_format($exchangeRate, 2, ',', ' ') ?> CDF</p>
         </div>
     </div>
 
@@ -40,7 +56,7 @@
                 </select>
             </label>
             <label class="block">
-                <span class="mb-2 block text-sm font-semibold text-slate-700">Montant</span>
+                <span class="mb-2 block text-sm font-semibold text-slate-700">Montant (<?= htmlspecialchars($expenseCurrency, ENT_QUOTES, 'UTF-8') ?>)</span>
                 <input class="field-control" name="montant" type="number" min="0" step="0.01" placeholder="0.00">
             </label>
             <label class="block">
@@ -72,7 +88,7 @@
                                 <?= htmlspecialchars((string) $expense['categorie'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars((string) $expense['date_depense'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars((string) $expense['user'], ENT_QUOTES, 'UTF-8') ?>
                             </p>
                         </div>
-                        <strong class="shrink-0 text-right"><?= number_format((float) $expense['montant'], 2, ',', ' ') ?> USD</strong>
+                        <strong class="shrink-0 text-right"><?= $money($expense['montant'] ?? 0) ?></strong>
                     </article>
                 <?php endforeach; ?>
             </div>

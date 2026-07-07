@@ -8,7 +8,15 @@ $recentSignals = is_array($recentSignals ?? null) ? $recentSignals : [];
 $monthlyTrend = is_array($monthlyTrend ?? null) ? $monthlyTrend : [];
 
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$dashboardCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$money = static function ($value) use ($dashboardCurrency, $exchangeRate): string {
+    $amount = (float) $value;
+    $usd = number_format($amount, 2, ',', ' ') . ' USD';
+    $cdf = number_format($amount * $exchangeRate, 2, ',', ' ') . ' CDF';
+
+    return $dashboardCurrency === 'CDF' ? $cdf . ' (' . $usd . ')' : $usd . ' (' . $cdf . ')';
+};
 $statToneClasses = [
     'teal' => 'border-teal-100 bg-teal-50 text-teal-700',
     'blue' => 'border-blue-100 bg-blue-50 text-blue-700',

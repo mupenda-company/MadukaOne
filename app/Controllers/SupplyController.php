@@ -17,17 +17,25 @@ class SupplyController extends AppController
 
     public function index(array $params = []): void
     {
-        $supplies = $this->supplies->allByShop($this->currentShopId());
-
-        if (trim((string) file_get_contents(dirname(__DIR__) . '/Views/supplies/index.php')) === '') {
-            $this->create($params);
-            return;
-        }
+        $shopId = $this->currentShopId();
+        $perPage = 10;
+        $totalSupplies = $this->supplies->countByShop($shopId);
+        $totalPages = max(1, (int) ceil($totalSupplies / $perPage));
+        $currentPage = max(1, min($totalPages, (int) ($_GET['page'] ?? 1)));
+        $offset = ($currentPage - 1) * $perPage;
 
         $this->render('supplies/index', [
             'pageTitle' => 'Approvisionnements',
             'activeMenu' => 'supplies',
-            'supplies' => $supplies,
+            'supplies' => $this->supplies->allByShop($shopId, $perPage, $offset),
+            'pagination' => [
+                'current_page' => $currentPage,
+                'per_page' => $perPage,
+                'total_items' => $totalSupplies,
+                'total_pages' => $totalPages,
+                'from' => $totalSupplies === 0 ? 0 : $offset + 1,
+                'to' => min($offset + $perPage, $totalSupplies),
+            ],
         ]);
     }
 
@@ -40,6 +48,7 @@ class SupplyController extends AppController
             'activeMenu' => 'supplies',
             'suppliers' => $this->suppliers($shopId),
             'products' => $this->products($shopId),
+            'selectedSupplierId' => (int) ($_GET['supplier_id'] ?? 0),
         ]);
     }
 
@@ -65,28 +74,80 @@ class SupplyController extends AppController
 
     public function show(array $params = []): void
     {
-        $id = (int) ($params['id'] ?? 0);
-
-        if ($id <= 0) {
-            $this->abort(404, 'Arrivage introuvable.');
-        }
-
-        $supply = $this->supplies->findByShop($id, $this->currentShopId());
+        $id = $this->supplyIdFromParams($params);
+        $shopId = $this->currentShopId();
+        $supply = $this->supplies->findByShop($id, $shopId);
 
         if ($supply === null) {
-            $this->abort(404, 'Arrivage introuvable pour cette boutique.');
-        }
-
-        if (trim((string) file_get_contents(dirname(__DIR__) . '/Views/supplies/show.php')) === '') {
-            $this->flashSuccess('Arrivage validé avec succès.');
-            $this->redirect('/supplies/create');
+            $this->abort(404, 'Approvisionnement introuvable pour cette boutique.');
         }
 
         $this->render('supplies/show', [
-            'pageTitle' => 'Détail arrivage',
+            'pageTitle' => 'Détail approvisionnement',
             'activeMenu' => 'supplies',
             'supply' => $supply,
+            'details' => $this->supplies->detailsBySupply($id, $shopId),
         ]);
+    }
+
+    public function edit(array $params = []): void
+    {
+        $id = $this->supplyIdFromParams($params);
+        $shopId = $this->currentShopId();
+        $supply = $this->supplies->findByShop($id, $shopId);
+
+        if ($supply === null) {
+            $this->abort(404, 'Approvisionnement introuvable pour cette boutique.');
+        }
+
+        if ((string) ($supply['statut'] ?? '') === 'annule') {
+            $this->flashError('Un approvisionnement annulé ne peut pas être modifié.');
+            $this->redirect('/supplies/' . $id);
+        }
+
+        $this->render('supplies/edit', [
+            'pageTitle' => 'Modifier l’approvisionnement',
+            'activeMenu' => 'supplies',
+            'supply' => $supply,
+            'details' => $this->supplies->detailsBySupply($id, $shopId),
+            'suppliers' => $this->suppliers($shopId),
+            'products' => $this->products($shopId, activeOnly: false),
+        ]);
+    }
+
+    public function update(array $params = []): void
+    {
+        $id = $this->supplyIdFromParams($params);
+        $data = $this->payload();
+        $errors = $this->validateArrival($data);
+
+        if ($errors !== []) {
+            $this->flashError($this->firstError($errors));
+            $this->redirect('/supplies/' . $id . '/edit');
+        }
+
+        try {
+            $this->supplies->updateArrival($id, $data, $this->currentShopId(), $this->currentUserId());
+            $this->flashSuccess('Approvisionnement mis à jour avec succès.');
+            $this->redirect('/supplies/' . $id);
+        } catch (Throwable $exception) {
+            $this->flashError('Impossible de modifier l’approvisionnement: ' . $exception->getMessage());
+            $this->redirect('/supplies/' . $id . '/edit');
+        }
+    }
+
+    public function cancel(array $params = []): void
+    {
+        $id = $this->supplyIdFromParams($params);
+
+        try {
+            $this->supplies->cancelByShop($id, $this->currentShopId(), $this->currentUserId());
+            $this->flashSuccess('Approvisionnement annulé avec succès.');
+            $this->redirect('/supplies');
+        } catch (Throwable $exception) {
+            $this->flashError('Impossible d’annuler l’approvisionnement: ' . $exception->getMessage());
+            $this->redirect('/supplies/' . $id);
+        }
     }
 
     private function payload(): array
@@ -167,10 +228,11 @@ class SupplyController extends AppController
         return $statement->fetchAll();
     }
 
-    private function products(int $shopId): array
+    private function products(int $shopId, bool $activeOnly = true): array
     {
+        $activeClause = $activeOnly ? ' AND actif = 1' : '';
         $statement = Database::connection()->prepare(
-            'SELECT id, nom, ref, prix_achat FROM products WHERE shop_id = :shop_id AND actif = 1 ORDER BY nom ASC'
+            'SELECT id, nom, ref, prix_achat FROM products WHERE shop_id = :shop_id' . $activeClause . ' ORDER BY nom ASC'
         );
         $statement->execute(['shop_id' => $shopId]);
 
@@ -182,6 +244,17 @@ class SupplyController extends AppController
         $value = trim((string) ($value ?? ''));
 
         return $value === '' ? null : str_replace('T', ' ', $value);
+    }
+
+    private function supplyIdFromParams(array $params): int
+    {
+        $id = (int) ($params['id'] ?? $_POST['id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->abort(404, 'Approvisionnement introuvable.');
+        }
+
+        return $id;
     }
 
     private function firstError(array $errors): string

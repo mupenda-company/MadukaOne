@@ -3,7 +3,16 @@
 $movements = is_array($movements ?? null) ? $movements : [];
 $products = is_array($products ?? null) ? $products : [];
 $stockStats = is_array($stockStats ?? null) ? $stockStats : [];
+$pagination = is_array($pagination ?? null) ? $pagination : [
+    'current_page' => 1,
+    'per_page' => 10,
+    'total_items' => count($movements),
+    'total_pages' => 1,
+    'from' => $movements === [] ? 0 : 1,
+    'to' => count($movements),
+];
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
+$pageUrl = static fn (int $page): string => $url('/stock/movements', ['page' => $page]);
 $dateLabel = static function ($value): string {
     $timestamp = strtotime((string) ($value ?? ''));
     return $timestamp !== false ? date('d/m/Y H:i', $timestamp) : '-';
@@ -125,6 +134,68 @@ $icon = static function (string $name): string {
                 <div class="hidden px-4 py-10 text-center text-sm text-slate-500" data-stock-empty>Aucun mouvement ne correspond aux filtres.</div>
             </div>
         </div>
+
+        <?php if ((int) ($pagination['total_items'] ?? 0) > 0): ?>
+            <?php
+            $currentPage = (int) ($pagination['current_page'] ?? 1);
+            $totalPages = (int) ($pagination['total_pages'] ?? 1);
+            $startPage = max(1, $currentPage - 2);
+            $endPage = min($totalPages, $currentPage + 2);
+            ?>
+            <div class="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm text-slate-500">
+                    Affichage de
+                    <strong class="text-slate-950"><?= (int) ($pagination['from'] ?? 0) ?></strong>
+                    à
+                    <strong class="text-slate-950"><?= (int) ($pagination['to'] ?? 0) ?></strong>
+                    sur
+                    <strong class="text-slate-950"><?= (int) ($pagination['total_items'] ?? 0) ?></strong>
+                    mouvement(s).
+                </p>
+
+                <nav class="flex flex-wrap items-center gap-2" aria-label="Pagination des mouvements de stock">
+                    <a
+                        class="btn-secondary h-10 px-3 <?= $currentPage <= 1 ? 'pointer-events-none opacity-50' : '' ?>"
+                        href="<?= $pageUrl(max(1, $currentPage - 1)) ?>"
+                        aria-label="Page précédente"
+                    >
+                        Précédent
+                    </a>
+
+                    <?php if ($startPage > 1): ?>
+                        <a class="btn-secondary h-10 w-10 px-0" href="<?= $pageUrl(1) ?>">1</a>
+                        <?php if ($startPage > 2): ?>
+                            <span class="px-2 text-sm font-bold text-slate-400">...</span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php for ($page = $startPage; $page <= $endPage; $page++): ?>
+                        <a
+                            class="<?= $page === $currentPage ? 'inline-flex h-10 w-10 items-center justify-center rounded-lg bg-teal-700 text-sm font-bold text-white shadow-sm' : 'btn-secondary h-10 w-10 px-0' ?>"
+                            href="<?= $pageUrl($page) ?>"
+                            aria-current="<?= $page === $currentPage ? 'page' : 'false' ?>"
+                        >
+                            <?= $page ?>
+                        </a>
+                    <?php endfor; ?>
+
+                    <?php if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
+                            <span class="px-2 text-sm font-bold text-slate-400">...</span>
+                        <?php endif; ?>
+                        <a class="btn-secondary h-10 w-10 px-0" href="<?= $pageUrl($totalPages) ?>"><?= $totalPages ?></a>
+                    <?php endif; ?>
+
+                    <a
+                        class="btn-secondary h-10 px-3 <?= $currentPage >= $totalPages ? 'pointer-events-none opacity-50' : '' ?>"
+                        href="<?= $pageUrl(min($totalPages, $currentPage + 1)) ?>"
+                        aria-label="Page suivante"
+                    >
+                        Suivant
+                    </a>
+                </nav>
+            </div>
+        <?php endif; ?>
     </section>
 </section>
 

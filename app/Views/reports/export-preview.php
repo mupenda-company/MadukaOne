@@ -11,7 +11,15 @@ $recentSales = is_array($recentSales ?? null) ? $recentSales : [];
 $periodDisplay = (string) ($periodDisplay ?? '');
 
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$previewCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$money = static function ($value) use ($previewCurrency, $exchangeRate): string {
+    $amount = (float) $value;
+    $usd = number_format($amount, 2, ',', ' ') . ' USD';
+    $cdf = number_format($amount * $exchangeRate, 2, ',', ' ') . ' CDF';
+
+    return $previewCurrency === 'CDF' ? $cdf . ' (' . $usd . ')' : $usd . ' (' . $cdf . ')';
+};
 $dateLabel = static function ($value, string $fallback = '-'): string {
     $timestamp = strtotime((string) ($value ?? ''));
     return $timestamp !== false ? date('d/m/Y H:i', $timestamp) : $fallback;

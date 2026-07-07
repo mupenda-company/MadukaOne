@@ -1,6 +1,15 @@
 <?php
 
 $customer = is_array($customer ?? null) ? $customer : [];
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$customerCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$displayDebt = (float) ($customer['dette_actuelle'] ?? 0);
+
+if ($customerCurrency === 'CDF') {
+    $displayDebt *= $exchangeRate;
+}
+
 $icon = static function (string $name): string {
     $paths = [
         'arrow' => '<path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -38,8 +47,8 @@ $value = static fn (string $key, string $fallback = ''): string => htmlspecialch
                 </div>
             </div>
             <div>
-                <label class="mb-2 block text-sm font-semibold text-slate-800" for="customer_debt">Dette actuelle</label>
-                <input class="field-control" id="customer_debt" name="dette_actuelle" type="number" min="0" step="0.01" value="<?= $value('dette_actuelle', '0') ?>">
+                <label class="mb-2 block text-sm font-semibold text-slate-800" for="customer_debt">Dette actuelle (<?= htmlspecialchars($customerCurrency, ENT_QUOTES, 'UTF-8') ?>)</label>
+                <input class="field-control" id="customer_debt" name="dette_actuelle" type="number" min="0" step="0.01" value="<?= htmlspecialchars(number_format($displayDebt, 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>">
             </div>
             <button class="btn-primary gap-2" type="submit"><?= $icon('save') ?><span>Enregistrer les modifications</span></button>
         </form>
