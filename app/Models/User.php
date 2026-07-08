@@ -262,6 +262,8 @@ final class User extends Model
     {
         $nom = trim((string) ($data['nom'] ?? ''));
         $prenom = trim((string) ($data['prenom'] ?? ''));
+        $email = $this->nullableEmail($data['email'] ?? null);
+        $telephone = $this->nullableString($data['telephone'] ?? null);
         $invitationCode = strtoupper(trim((string) ($data['invitation_code'] ?? '')));
         $roleId = $this->nullablePositiveInt($data['role_id'] ?? null);
         $shopId = $this->nullablePositiveInt($data['shop_id'] ?? null);
@@ -273,10 +275,10 @@ final class User extends Model
         try {
             $statement = Database::connection()->prepare(
                 "INSERT INTO users (
-                    shop_id, role_id, prenom, nom, email, password_hash, auth_provider,
+                    shop_id, role_id, prenom, nom, email, telephone, password_hash, auth_provider,
                     google_id, apple_id, invitation_code, role_legacy, actif
                  ) VALUES (
-                    :shop_id, :role_id, :prenom, :nom, NULL, NULL, 'local',
+                    :shop_id, :role_id, :prenom, :nom, :email, :telephone, NULL, 'local',
                     NULL, NULL, :invitation_code, :role_legacy, 1
                  )"
             );
@@ -286,6 +288,8 @@ final class User extends Model
                 'role_id' => $roleId,
                 'prenom' => $prenom,
                 'nom' => $nom,
+                'email' => $email,
+                'telephone' => $telephone,
                 'invitation_code' => $invitationCode,
                 'role_legacy' => $this->legacyRoleForRoleId($roleId),
             ]);
@@ -323,9 +327,12 @@ final class User extends Model
     {
         $nom = trim((string) ($data['nom'] ?? ''));
         $prenom = trim((string) ($data['prenom'] ?? ''));
+        $email = $this->nullableEmail($data['email'] ?? null);
+        $telephone = $this->nullableString($data['telephone'] ?? null);
         $roleId = $this->nullablePositiveInt($data['role_id'] ?? null);
+        $shopId = $this->nullablePositiveInt($data['shop_id'] ?? null);
 
-        if ($id < 1 || $nom === '' || $prenom === '' || $roleId === null) {
+        if ($id < 1 || $nom === '' || $prenom === '' || $roleId === null || $shopId === null) {
             throw new InvalidArgumentException('Donnees utilisateur invalides.');
         }
 
@@ -333,6 +340,9 @@ final class User extends Model
             'UPDATE users
              SET nom = :nom,
                  prenom = :prenom,
+                 email = :email,
+                 telephone = :telephone,
+                 shop_id = :shop_id,
                  role_id = :role_id,
                  role_legacy = :role_legacy
              WHERE id = :id'
@@ -341,10 +351,25 @@ final class User extends Model
         $statement->execute([
             'nom' => $nom,
             'prenom' => $prenom,
+            'email' => $email,
+            'telephone' => $telephone,
+            'shop_id' => $shopId,
             'role_id' => $roleId,
             'role_legacy' => $this->legacyRoleForRoleId($roleId),
             'id' => $id,
         ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function activateUser(int $id): bool
+    {
+        if ($id < 1) {
+            throw new InvalidArgumentException('Identifiant utilisateur invalide.');
+        }
+
+        $statement = Database::connection()->prepare('UPDATE users SET actif = 1 WHERE id = :id');
+        $statement->execute(['id' => $id]);
 
         return $statement->rowCount() > 0;
     }
@@ -356,6 +381,18 @@ final class User extends Model
         }
 
         $statement = Database::connection()->prepare('DELETE FROM users WHERE id = :id');
+        $statement->execute(['id' => $id]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function deactivateUser(int $id): bool
+    {
+        if ($id < 1) {
+            throw new InvalidArgumentException('Identifiant utilisateur invalide.');
+        }
+
+        $statement = Database::connection()->prepare('UPDATE users SET actif = 0 WHERE id = :id');
         $statement->execute(['id' => $id]);
 
         return $statement->rowCount() > 0;
@@ -617,5 +654,20 @@ final class User extends Model
         $value = trim((string) ($value ?? ''));
 
         return $value === '' ? null : $value;
+    }
+
+    private function nullableEmail(mixed $value): ?string
+    {
+        $value = strtolower(trim((string) ($value ?? '')));
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
+            throw new InvalidArgumentException('Email utilisateur invalide.');
+        }
+
+        return $value;
     }
 }

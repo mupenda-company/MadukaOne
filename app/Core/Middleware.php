@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/Models/User.php';
+
 final class Middleware
 {
     private const ADMIN_PATTERNS = [
@@ -31,6 +33,8 @@ final class Middleware
         if (empty($_SESSION['user']) || !is_array($_SESSION['user'])) {
             self::redirect('/login');
         }
+
+        self::ensureAuthenticatedUserIsFresh();
     }
 
     public static function guest(string $path, string $method, array $params = []): void
@@ -39,6 +43,7 @@ final class Middleware
         self::sendNoStoreHeaders();
 
         if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
+            self::ensureAuthenticatedUserIsFresh();
             self::redirect(self::isAgent() ? '/pos' : '/dashboard');
         }
     }
@@ -96,6 +101,69 @@ final class Middleware
     {
         $_SESSION['flash_error'] = 'Accès refusé : cette zone est réservée à l administrateur.';
         self::redirect('/pos', 403);
+    }
+
+    private static function ensureAuthenticatedUserIsFresh(): void
+    {
+        $sessionUser = $_SESSION['user'] ?? null;
+
+        if (!is_array($sessionUser)) {
+            self::expireSessionAndRedirect('Votre session a expire. Veuillez vous reconnecter.');
+        }
+
+        $userId = (int) ($sessionUser['id'] ?? 0);
+
+        if ($userId < 1) {
+            self::expireSessionAndRedirect('Votre session est invalide. Veuillez vous reconnecter.');
+        }
+
+        try {
+            $users = new User();
+            $databaseUser = $users->findById($userId, null, false);
+        } catch (Throwable) {
+            self::expireSessionAndRedirect('Verification de session impossible. Veuillez vous reconnecter.');
+        }
+
+        if ($databaseUser === null || (int) ($databaseUser['actif'] ?? 0) !== 1) {
+            self::expireSessionAndRedirect('Votre compte a ete desactive. Veuillez contacter votre administrateur.');
+        }
+
+        $databasePayload = $users->sessionPayload($databaseUser);
+
+        if (
+            self::nullableInt($sessionUser['role_id'] ?? null) !== self::nullableInt($databasePayload['role_id'] ?? null)
+            || self::nullableInt($sessionUser['shop_id'] ?? null) !== self::nullableInt($databasePayload['shop_id'] ?? null)
+            || strtolower((string) ($sessionUser['role'] ?? '')) !== strtolower((string) ($databasePayload['role'] ?? ''))
+            || strtolower((string) ($sessionUser['role_legacy'] ?? '')) !== strtolower((string) ($databasePayload['role_legacy'] ?? ''))
+        ) {
+            self::expireSessionAndRedirect('Vos droits d acces ont change. Veuillez vous reconnecter.');
+        }
+
+        $_SESSION['user'] = $databasePayload;
+        $_SESSION['shop_id'] = $databasePayload['shop_id'];
+    }
+
+    private static function nullableInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $value = (int) $value;
+
+        return $value > 0 ? $value : null;
+    }
+
+    private static function expireSessionAndRedirect(string $message): never
+    {
+        $_SESSION = [];
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
+
+        $_SESSION['flash_error'] = $message;
+        self::redirect('/login');
     }
 
     private static function redirect(string $path, int $statusCode = 302): never

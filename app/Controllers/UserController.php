@@ -59,11 +59,13 @@ class UserController
         try {
             $nom = trim((string) ($_POST['nom'] ?? ''));
             $prenom = trim((string) ($_POST['prenom'] ?? ''));
+            $email = trim((string) ($_POST['email'] ?? ''));
+            $telephone = trim((string) ($_POST['telephone'] ?? ''));
             $roleId = (int) ($_POST['role_id'] ?? 0);
-            $shopId = (int) ($_SESSION['shop_id'] ?? 0);
+            $shopId = (int) ($_POST['shop_id'] ?? 0);
 
             if ($shopId < 1) {
-                $shopId = (int) ($_SESSION['user']['shop_id'] ?? $_SESSION['current_shop_id'] ?? 0);
+                $shopId = $this->currentShopId();
             }
 
             if ($nom === '' || $prenom === '' || $roleId < 1 || $shopId < 1) {
@@ -75,6 +77,8 @@ class UserController
             $created = $this->users->createWithInvitation([
                 'nom' => $nom,
                 'prenom' => $prenom,
+                'email' => $email,
+                'telephone' => $telephone,
                 'role_id' => $roleId,
                 'shop_id' => $shopId,
                 'invitation_code' => $invitationCode,
@@ -137,16 +141,22 @@ class UserController
 
             $nom = trim((string) ($_POST['nom'] ?? ''));
             $prenom = trim((string) ($_POST['prenom'] ?? ''));
+            $email = trim((string) ($_POST['email'] ?? ''));
+            $telephone = trim((string) ($_POST['telephone'] ?? ''));
             $roleId = (int) ($_POST['role_id'] ?? 0);
+            $targetShopId = (int) ($_POST['shop_id'] ?? 0);
 
-            if ($nom === '' || $prenom === '' || $roleId < 1) {
-                $this->flashError('Veuillez renseigner le prenom, le nom et le role.');
+            if ($nom === '' || $prenom === '' || $roleId < 1 || $targetShopId < 1) {
+                $this->flashError('Veuillez renseigner le prenom, le nom, la boutique et le role.');
                 $this->redirect('/admin/users/edit/' . $id);
             }
 
             $this->users->updateUser($id, [
                 'nom' => $nom,
                 'prenom' => $prenom,
+                'email' => $email,
+                'telephone' => $telephone,
+                'shop_id' => $targetShopId,
                 'role_id' => $roleId,
             ]);
 
@@ -173,6 +183,11 @@ class UserController
                 $this->redirect('/users');
             }
 
+            if ($id === (int) ($_SESSION['user']['id'] ?? 0)) {
+                $this->flashError('Vous ne pouvez pas supprimer votre propre compte pendant que vous etes connecte.');
+                $this->redirect('/users');
+            }
+
             if (!$this->users->deleteUser($id)) {
                 throw new RuntimeException('Suppression utilisateur echouee.');
             }
@@ -181,6 +196,65 @@ class UserController
             $this->redirect('/users');
         } catch (Throwable) {
             $this->flashError('Suppression impossible. Cet utilisateur est peut-etre deja lie a des operations.');
+            $this->redirect('/users');
+        }
+    }
+
+    public function deactivate(array $params = []): void
+    {
+        $this->startSession();
+
+        $id = (int) ($params['id'] ?? 0);
+        $shopId = $this->currentShopId();
+
+        try {
+            $user = $this->users->findByIdAndShop($id, $shopId);
+
+            if ($user === null) {
+                $this->flashError('Utilisateur introuvable pour cette boutique.');
+                $this->redirect('/users');
+            }
+
+            if ($id === (int) ($_SESSION['user']['id'] ?? 0)) {
+                $this->flashError('Vous ne pouvez pas desactiver votre propre compte pendant que vous etes connecte.');
+                $this->redirect('/users');
+            }
+
+            if (!$this->users->deactivateUser($id)) {
+                throw new RuntimeException('Desactivation utilisateur echouee.');
+            }
+
+            $this->flashSuccess('Utilisateur desactive avec succes.');
+            $this->redirect('/users');
+        } catch (Throwable) {
+            $this->flashError('Desactivation impossible. Veuillez reessayer.');
+            $this->redirect('/users');
+        }
+    }
+
+    public function activate(array $params = []): void
+    {
+        $this->startSession();
+
+        $id = (int) ($params['id'] ?? 0);
+        $shopId = $this->currentShopId();
+
+        try {
+            $user = $this->users->findByIdAndShop($id, $shopId);
+
+            if ($user === null) {
+                $this->flashError('Utilisateur introuvable pour cette boutique.');
+                $this->redirect('/users');
+            }
+
+            if (!$this->users->activateUser($id)) {
+                throw new RuntimeException('Activation utilisateur echouee.');
+            }
+
+            $this->flashSuccess('Utilisateur active avec succes.');
+            $this->redirect('/users');
+        } catch (Throwable) {
+            $this->flashError('Activation impossible. Veuillez reessayer.');
             $this->redirect('/users');
         }
     }
@@ -236,36 +310,21 @@ class UserController
 
     private function employeeRoles(): array
     {
-        $fallback = [
-            ['id' => 3, 'nom' => 'Agent de caisse'],
-            ['id' => 2, 'nom' => 'Gerant'],
-        ];
-
         try {
             $statement = Database::connection()->query('SELECT id, nom FROM roles ORDER BY id ASC');
             $roles = $statement->fetchAll();
-            $agent = null;
-            $gerant = null;
 
-            foreach ((array) $roles as $role) {
-                $name = strtolower(trim((string) ($role['nom'] ?? '')));
-
-                if ($agent === null && in_array($name, ['caissier', 'agent', 'vendeur'], true)) {
-                    $agent = ['id' => (int) $role['id'], 'nom' => 'Agent de caisse'];
-                }
-
-                if ($gerant === null && in_array($name, ['gerant', 'manager'], true)) {
-                    $gerant = ['id' => (int) $role['id'], 'nom' => 'Gerant'];
-                }
-            }
-
-            if ($agent !== null && $gerant !== null) {
-                return [$agent, $gerant];
+            if (is_array($roles) && $roles !== []) {
+                return $roles;
             }
         } catch (Throwable) {
         }
 
-        return $fallback;
+        return [
+            ['id' => 1, 'nom' => 'Super Admin'],
+            ['id' => 2, 'nom' => 'Gerant'],
+            ['id' => 3, 'nom' => 'Caissier'],
+        ];
     }
 
     private function generateInvitationCode(): string

@@ -1,7 +1,11 @@
-<?php
+﻿<?php
 
 $users = is_array($users ?? null) ? $users : [];
 $userStats = is_array($userStats ?? null) ? $userStats : [];
+$currentUserId = (int) ($currentUser['id'] ?? 0);
+$flashSuccess = $_SESSION['flash_success'] ?? null;
+$flashError = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateLabel = static function ($value): string {
@@ -46,6 +50,8 @@ $icon = static function (string $name): string {
         'eye' => '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2"/>',
         'edit' => '<path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m13.5 6.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
         'ban' => '<path d="M5 5 19 19M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+        'check' => '<path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'trash' => '<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     ];
 
     return '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">' . ($paths[$name] ?? $paths['users']) . '</svg>';
@@ -53,6 +59,18 @@ $icon = static function (string $name): string {
 ?>
 
 <section class="space-y-5" data-users-page>
+    <?php if (is_string($flashSuccess) && $flashSuccess !== ''): ?>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+            <?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8') ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if (is_string($flashError) && $flashError !== ''): ?>
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            <?= htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8') ?>
+        </div>
+    <?php endif; ?>
+
     <div class="dashboard-hero">
         <div class="min-w-0">
             <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Administration</p>
@@ -126,6 +144,7 @@ $icon = static function (string $name): string {
                     $name = trim((string) (($user['prenom'] ?? '') . ' ' . ($user['nom'] ?? '')));
                     $name = $name !== '' ? $name : 'Utilisateur';
                     $userId = (int) ($user['id'] ?? 0);
+                    $isCurrentUser = $userId === $currentUserId;
                     $email = (string) ($user['email'] ?? '');
                     $phone = (string) ($user['telephone'] ?? '');
                     $roleName = (string) ($user['role_name'] ?? $user['role_legacy'] ?? 'Agent');
@@ -200,16 +219,42 @@ $icon = static function (string $name): string {
                             >
                                 <?= $icon('edit') ?>
                             </a>
-                            <form method="post" action="<?= $url('/admin/users/delete/' . $userId) ?>" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')">
-                                <button
-                                    class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
-                                    type="submit"
-                                    title="Supprimer l'utilisateur"
-                                    aria-label="Supprimer l'utilisateur <?= $safe($name) ?>"
-                                >
-                                    <?= $icon('ban') ?>
-                                </button>
-                            </form>
+                            <?php if (!$active): ?>
+                                <form method="post" action="<?= $url('/admin/users/activate/' . $userId) ?>" onsubmit="return confirm('Voulez-vous activer cet utilisateur ?')">
+                                    <button
+                                        class="grid h-9 w-9 place-items-center rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                                        type="submit"
+                                        title="Activer l'utilisateur"
+                                        aria-label="Activer l'utilisateur <?= $safe($name) ?>"
+                                    >
+                                        <?= $icon('check') ?>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                            <?php if ($active && !$isCurrentUser): ?>
+                                <form method="post" action="<?= $url('/admin/users/deactivate/' . $userId) ?>" onsubmit="return confirm('Voulez-vous désactiver cet utilisateur ?')">
+                                    <button
+                                        class="grid h-9 w-9 place-items-center rounded-lg border border-amber-100 bg-amber-50 text-amber-700 transition hover:bg-amber-100 focus:outline-none focus:ring-4 focus:ring-amber-100"
+                                        type="submit"
+                                        title="Désactiver l'utilisateur"
+                                        aria-label="Désactiver l'utilisateur <?= $safe($name) ?>"
+                                    >
+                                        <?= $icon('ban') ?>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                            <?php if (!$isCurrentUser): ?>
+                                <form method="post" action="<?= $url('/admin/users/delete/' . $userId) ?>" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur ?')">
+                                    <button
+                                        class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
+                                        type="submit"
+                                        title="Supprimer définitivement l'utilisateur"
+                                        aria-label="Supprimer définitivement l'utilisateur <?= $safe($name) ?>"
+                                    >
+                                        <?= $icon('trash') ?>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </article>
                 <?php endforeach; ?>
