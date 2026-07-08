@@ -15,7 +15,16 @@ $reportFilter = is_array($reportFilter ?? null) ? $reportFilter : [
 ];
 $periodDisplay = (string) ($periodDisplay ?? '');
 
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$reportCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$money = static function ($value) use ($reportCurrency, $exchangeRate): string {
+    $amount = (float) $value;
+    $usd = number_format($amount, 2, ',', ' ') . ' USD';
+    $cdf = number_format($amount * $exchangeRate, 2, ',', ' ') . ' CDF';
+
+    return $reportCurrency === 'CDF' ? $cdf . ' (' . $usd . ')' : $usd . ' (' . $cdf . ')';
+};
 $number = static fn ($value): string => number_format((float) $value, 0, ',', ' ');
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateLabel = static function ($value, string $fallback = '-'): string {

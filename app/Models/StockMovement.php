@@ -7,8 +7,10 @@ require_once dirname(__DIR__) . '/Core/Model.php';
 
 final class StockMovement extends Model
 {
-    public function allByShop(int $shopId, int $limit = 100): array
+    public function allByShop(int $shopId, int $limit = 100, int $offset = 0): array
     {
+        $limit = max(1, min(500, $limit));
+        $offset = max(0, $offset);
         $statement = Database::connection()->prepare(
             'SELECT
                 stock_movements.*,
@@ -20,11 +22,23 @@ final class StockMovement extends Model
              INNER JOIN users ON users.id = stock_movements.user_id
              WHERE stock_movements.shop_id = :shop_id
              ORDER BY stock_movements.date_mouvement DESC, stock_movements.id DESC
-             LIMIT ' . max(1, min(500, $limit))
+             LIMIT ' . $limit . ' OFFSET ' . $offset
         );
         $statement->execute(['shop_id' => $shopId]);
 
         return $statement->fetchAll();
+    }
+
+    public function countByShop(int $shopId): int
+    {
+        $statement = Database::connection()->prepare(
+            'SELECT COUNT(*)
+             FROM stock_movements
+             WHERE shop_id = :shop_id'
+        );
+        $statement->execute(['shop_id' => $shopId]);
+
+        return (int) $statement->fetchColumn();
     }
 
     public function createManualAdjustment(array $data, int $shopId, int $userId): int

@@ -42,7 +42,7 @@ $userInitial = strtoupper(substr($userName, 0, 1));
                         <p class="px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Boutiques</p>
                         <?php foreach ($shops as $shop): ?>
                             <?php $isActiveShop = (int) ($shop['id'] ?? 0) === (int) ($activeShop['id'] ?? 0); ?>
-                            <a class="dropdown-item <?= $isActiveShop ? 'is-active' : '' ?>" href="<?= $url('/', ['shop_id' => (int) $shop['id']]) ?>" role="menuitem">
+                            <a class="dropdown-item <?= $isActiveShop ? 'is-active' : '' ?>" href="<?= $url('/dashboard', ['shop_id' => (int) $shop['id']]) ?>" role="menuitem">
                                 <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-teal-50 text-xs font-bold text-teal-700">
                                     <?= htmlspecialchars(strtoupper(substr((string) $shop['nom'], 0, 1)), ENT_QUOTES, 'UTF-8') ?>
                                 </span>

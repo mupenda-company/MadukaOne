@@ -31,10 +31,14 @@ CREATE TABLE shops (
   nom VARCHAR(120) NOT NULL,
   adresse VARCHAR(255) NULL,
   telephone VARCHAR(50) NULL,
+  email VARCHAR(190) NULL,
+  devise_principale ENUM('USD', 'CDF') NOT NULL DEFAULT 'USD',
+  taux_change_cdf DECIMAL(14,4) NOT NULL DEFAULT 2800.0000,
   actif TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY idx_shops_actif (actif)
+  KEY idx_shops_actif (actif),
+  CONSTRAINT chk_shops_taux_change_cdf CHECK (taux_change_cdf > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE roles (
@@ -119,6 +123,10 @@ CREATE TABLE products (
   description TEXT NULL,
   prix_achat DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   prix_vente DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  prix_achat_devise ENUM('USD', 'CDF') NOT NULL DEFAULT 'USD',
+  prix_vente_devise ENUM('USD', 'CDF') NOT NULL DEFAULT 'USD',
+  prix_achat_montant DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  prix_vente_montant DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   quantite_stock INT NOT NULL DEFAULT 0,
   alerte_stock_min INT NOT NULL DEFAULT 0,
   date_fabrication DATE NULL,
@@ -139,6 +147,8 @@ CREATE TABLE products (
   CONSTRAINT fk_products_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT chk_products_prix_achat CHECK (prix_achat >= 0),
   CONSTRAINT chk_products_prix_vente CHECK (prix_vente >= 0),
+  CONSTRAINT chk_products_prix_achat_montant CHECK (prix_achat_montant >= 0),
+  CONSTRAINT chk_products_prix_vente_montant CHECK (prix_vente_montant >= 0),
   CONSTRAINT chk_products_quantite_stock CHECK (quantite_stock >= 0),
   CONSTRAINT chk_products_alerte_stock_min CHECK (alerte_stock_min >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -376,8 +386,8 @@ DELIMITER ;
 -- =========================================================================
 
 -- Création de la boutique témoin principale
-INSERT INTO shops (id, nom, adresse, telephone, actif)
-VALUES (1, 'Boutique Pilote - Centre Ville', 'Av. Principale No 10', '+243000000000', 1);
+INSERT INTO shops (id, nom, adresse, telephone, email, devise_principale, taux_change_cdf, actif)
+VALUES (1, 'Boutique Pilote - Centre Ville', 'Av. Principale No 10', '+243000000000', NULL, 'USD', 2400.0000, 1);
 
 -- Création des rôles par défaut
 INSERT INTO roles (id, nom, permissions) 

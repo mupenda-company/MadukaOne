@@ -126,8 +126,12 @@ class ProductController extends AppController
             ->maxLength('ref', 80, 'Référence')
             ->numeric('prix_achat', 'Prix d’achat')
             ->numeric('prix_vente', 'Prix de vente')
+            ->numeric('prix_achat_montant', 'Montant du prix d achat')
+            ->numeric('prix_vente_montant', 'Montant du prix de vente')
             ->positiveOrZero('prix_achat', 'Prix d’achat')
             ->positiveOrZero('prix_vente', 'Prix de vente')
+            ->positiveOrZero('prix_achat_montant', 'Montant du prix d achat')
+            ->positiveOrZero('prix_vente_montant', 'Montant du prix de vente')
             ->integerPositiveOrZero('alerte_stock_min', 'Alerte stock minimum');
 
         if ($allowInitialStock) {
@@ -139,13 +143,23 @@ class ProductController extends AppController
 
     private function productPayload(bool $allowInitialStock): array
     {
+        $purchaseCurrency = $this->currencyFromInput($_POST['prix_achat_devise'] ?? null);
+        $saleCurrency = $this->currencyFromInput($_POST['prix_vente_devise'] ?? null);
+        $purchaseAmount = $_POST['prix_achat_montant'] ?? $_POST['prix_achat'] ?? 0;
+        $saleAmount = $_POST['prix_vente_montant'] ?? $_POST['prix_vente'] ?? 0;
+        $exchangeRate = $this->currentExchangeRate();
+
         $payload = [
             'code_barre' => $_POST['code_barre'] ?? null,
             'ref' => $_POST['ref'] ?? null,
             'nom' => $_POST['nom'] ?? '',
             'description' => $_POST['description'] ?? null,
-            'prix_achat' => $_POST['prix_achat'] ?? 0,
-            'prix_vente' => $_POST['prix_vente'] ?? 0,
+            'prix_achat' => $this->amountToUsd($purchaseAmount, $purchaseCurrency, $exchangeRate),
+            'prix_vente' => $this->amountToUsd($saleAmount, $saleCurrency, $exchangeRate),
+            'prix_achat_devise' => $purchaseCurrency,
+            'prix_vente_devise' => $saleCurrency,
+            'prix_achat_montant' => $purchaseAmount,
+            'prix_vente_montant' => $saleAmount,
             'alerte_stock_min' => $_POST['alerte_stock_min'] ?? 0,
             'date_fabrication' => $_POST['date_fabrication'] ?? null,
             'date_expiration' => $_POST['date_expiration'] ?? null,
@@ -157,6 +171,33 @@ class ProductController extends AppController
         }
 
         return $payload;
+    }
+
+    private function currencyFromInput(mixed $value): string
+    {
+        $currency = strtoupper(trim((string) ($value ?? 'USD')));
+
+        return in_array($currency, ['USD', 'CDF'], true) ? $currency : 'USD';
+    }
+
+    private function amountToUsd(mixed $amount, string $currency, float $exchangeRate): float
+    {
+        $value = is_numeric($amount) ? (float) $amount : 0.0;
+
+        if ($currency === 'CDF') {
+            return round($value / max($exchangeRate, 0.0001), 2);
+        }
+
+        return round($value, 2);
+    }
+
+    private function currentExchangeRate(): float
+    {
+        $shops = $this->shops();
+        $activeShop = $this->activeShop($shops, $this->currentUser());
+        $rate = (float) ($activeShop['taux_change_cdf'] ?? 2800);
+
+        return $rate > 0 ? $rate : 2800;
     }
 
     private function dateValidationError(array $data): ?string

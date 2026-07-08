@@ -5,7 +5,18 @@ $withPhone = count(array_filter($customers, static fn (array $customer): bool =>
 $withEmail = count(array_filter($customers, static fn (array $customer): bool => trim((string) ($customer['email'] ?? '')) !== ''));
 $withDebt = count(array_filter($customers, static fn (array $customer): bool => (float) ($customer['dette_actuelle'] ?? 0) > 0));
 $totalDebt = array_reduce($customers, static fn (float $sum, array $customer): float => $sum + (float) ($customer['dette_actuelle'] ?? 0), 0.0);
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$customerCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
+$money = static function ($value) use ($customerCurrency, $exchangeRate): string {
+    $amount = (float) $value;
+
+    if ($customerCurrency === 'CDF') {
+        $amount *= $exchangeRate;
+    }
+
+    return number_format($amount, 2, ',', ' ') . ' ' . $customerCurrency;
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $icon = static function (string $name): string {
     $paths = [
@@ -30,6 +41,9 @@ $icon = static function (string $name): string {
         <div>
             <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Relation client</p>
             <h1 class="text-3xl font-bold tracking-normal text-slate-950">Gestion des clients</h1>
+            <p class="mt-2 text-xs font-semibold text-slate-500">
+                Devise d'affichage: <?= htmlspecialchars($customerCurrency, ENT_QUOTES, 'UTF-8') ?> · 1 USD = <?= number_format($exchangeRate, 2, ',', ' ') ?> CDF
+            </p>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                 Centralisez les clients de la boutique active et suivez les crédits à encaisser.
             </p>
@@ -73,7 +87,7 @@ $icon = static function (string $name): string {
                     </div>
                 </div>
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-slate-800" for="customer_debt">Dette actuelle</label>
+                    <label class="mb-2 block text-sm font-semibold text-slate-800" for="customer_debt">Dette actuelle (<?= htmlspecialchars($customerCurrency, ENT_QUOTES, 'UTF-8') ?>)</label>
                     <input class="field-control" id="customer_debt" name="dette_actuelle" type="number" min="0" step="0.01" value="0">
                 </div>
                 <button class="btn-primary w-full gap-2" type="submit">

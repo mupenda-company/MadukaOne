@@ -1287,6 +1287,12 @@ class ReportController extends AppController
 
     private function money(float $value): string
     {
-        return number_format($value, 2, ',', ' ') . ' USD';
+        $shop = $this->activeShop($this->shops(), $this->currentUser());
+        $currency = in_array(($shop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $shop['devise_principale'] : 'USD';
+        $rate = (float) (($shop['taux_change_cdf'] ?? 2800) ?: 2800);
+        $usd = number_format($value, 2, ',', ' ') . ' USD';
+        $cdf = number_format($value * $rate, 2, ',', ' ') . ' CDF';
+
+        return $currency === 'CDF' ? $cdf . ' (' . $usd . ')' : $usd . ' (' . $cdf . ')';
     }
 }

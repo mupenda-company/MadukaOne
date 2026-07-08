@@ -22,12 +22,25 @@ class StockController extends AppController
     {
         $shopId = $this->currentShopId();
         $products = $this->products->allByShop($shopId);
+        $perPage = 10;
+        $totalMovements = $this->movements->countByShop($shopId);
+        $totalPages = max(1, (int) ceil($totalMovements / $perPage));
+        $currentPage = max(1, min($totalPages, (int) ($_GET['page'] ?? 1)));
+        $offset = ($currentPage - 1) * $perPage;
 
         $this->render('stock/movements', [
             'pageTitle' => 'Stock',
             'activeMenu' => 'stock',
             'products' => $products,
-            'movements' => $this->movements->allByShop($shopId),
+            'movements' => $this->movements->allByShop($shopId, $perPage, $offset),
+            'pagination' => [
+                'current_page' => $currentPage,
+                'per_page' => $perPage,
+                'total_items' => $totalMovements,
+                'total_pages' => $totalPages,
+                'from' => $totalMovements === 0 ? 0 : $offset + 1,
+                'to' => min($offset + $perPage, $totalMovements),
+            ],
             'stockStats' => $this->stockStats($products),
         ]);
     }

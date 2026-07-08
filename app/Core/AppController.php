@@ -141,7 +141,10 @@ abstract class AppController
     {
         try {
             $statement = Database::connection()->query(
-                'SELECT id, nom, adresse, telephone, actif FROM shops WHERE actif = 1 ORDER BY nom ASC'
+                'SELECT id, nom, adresse, telephone, email, devise_principale, taux_change_cdf, actif
+                 FROM shops
+                 WHERE actif = 1
+                 ORDER BY nom ASC'
             );
             $shops = $statement->fetchAll();
 
@@ -157,6 +160,9 @@ abstract class AppController
                 'nom' => 'Boutique Pilote - Centre Ville',
                 'adresse' => 'Av. Principale No 10',
                 'telephone' => '+243000000000',
+                'email' => null,
+                'devise_principale' => 'USD',
+                'taux_change_cdf' => 2800,
                 'actif' => 1,
             ],
         ];

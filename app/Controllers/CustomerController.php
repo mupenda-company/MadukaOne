@@ -120,8 +120,8 @@ class CustomerController extends AppController
             }
 
             $this->flashSuccess(
-                'Dette réglée: ' . number_format((float) $result['settled'], 2, ',', ' ')
-                . ' USD. Facture(s) actualisée(s): ' . (int) ($result['updated_sales'] ?? 0) . '.'
+                'Dette réglée: ' . $this->money((float) $result['settled'])
+                . '. Facture(s) actualisée(s): ' . (int) ($result['updated_sales'] ?? 0) . '.'
             );
         } catch (Throwable $exception) {
             $this->flashError('Impossible de régler la dette: ' . $exception->getMessage());
@@ -147,8 +147,32 @@ class CustomerController extends AppController
             'nom' => $_POST['nom'] ?? '',
             'telephone' => $this->nullableValue($_POST['telephone'] ?? null),
             'email' => $this->nullableValue($_POST['email'] ?? null),
-            'dette_actuelle' => $_POST['dette_actuelle'] ?? 0,
+            'dette_actuelle' => $this->amountToUsd($_POST['dette_actuelle'] ?? 0),
         ];
+    }
+
+    private function amountToUsd(mixed $amount): float
+    {
+        $value = is_numeric($amount) ? (float) $amount : 0.0;
+        $shop = $this->activeShop($this->shops(), $this->currentUser());
+        $currency = in_array(($shop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $shop['devise_principale'] : 'USD';
+        $rate = (float) (($shop['taux_change_cdf'] ?? 2800) ?: 2800);
+
+        if ($currency === 'CDF') {
+            return round($value / max($rate, 0.0001), 2);
+        }
+
+        return round($value, 2);
+    }
+
+    private function money(float $amount): string
+    {
+        $shop = $this->activeShop($this->shops(), $this->currentUser());
+        $currency = in_array(($shop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $shop['devise_principale'] : 'USD';
+        $rate = (float) (($shop['taux_change_cdf'] ?? 2800) ?: 2800);
+        $display = $currency === 'CDF' ? $amount * $rate : $amount;
+
+        return number_format($display, 2, ',', ' ') . ' ' . $currency;
     }
 
     private function nullableValue(mixed $value): ?string

@@ -6,6 +6,11 @@ $stock = (int) ($product['quantite_stock'] ?? 0);
 $minStock = (int) ($product['alerte_stock_min'] ?? 0);
 $purchasePrice = (float) ($product['prix_achat'] ?? 0);
 $salePrice = (float) ($product['prix_vente'] ?? 0);
+$purchaseCurrency = in_array(($product['prix_achat_devise'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product['prix_achat_devise'] : 'USD';
+$saleCurrency = in_array(($product['prix_vente_devise'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product['prix_vente_devise'] : 'USD';
+$purchaseAmount = (float) ($product['prix_achat_montant'] ?? $purchasePrice);
+$saleAmount = (float) ($product['prix_vente_montant'] ?? $salePrice);
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $margin = $salePrice - $purchasePrice;
 $isActive = (int) ($product['actif'] ?? 1) === 1;
 $stockStatus = $stock === 0 ? 'Rupture' : ($stock <= $minStock ? 'Alerte stock' : 'Disponible');
@@ -135,11 +140,23 @@ $icon = static function (string $name): string {
                 <div class="mt-5 space-y-4">
                     <label class="space-y-2">
                         <span class="text-sm font-semibold text-slate-700">Prix d'achat</span>
-                        <input class="field-control" name="prix_achat" type="number" min="0" step="0.01" value="<?= $value('prix_achat', '0') ?>" required>
+                        <div class="grid grid-cols-[1fr_6rem] gap-2">
+                            <input class="field-control" name="prix_achat_montant" type="number" min="0" step="0.01" value="<?= htmlspecialchars(number_format($purchaseAmount, 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>" required>
+                            <select class="field-control" name="prix_achat_devise" aria-label="Devise du prix d'achat">
+                                <option value="USD" <?= $purchaseCurrency === 'USD' ? 'selected' : '' ?>>USD</option>
+                                <option value="CDF" <?= $purchaseCurrency === 'CDF' ? 'selected' : '' ?>>CDF</option>
+                            </select>
+                        </div>
                     </label>
                     <label class="space-y-2">
                         <span class="text-sm font-semibold text-slate-700">Prix de vente</span>
-                        <input class="field-control" name="prix_vente" type="number" min="0" step="0.01" value="<?= $value('prix_vente', '0') ?>" required>
+                        <div class="grid grid-cols-[1fr_6rem] gap-2">
+                            <input class="field-control" name="prix_vente_montant" type="number" min="0" step="0.01" value="<?= htmlspecialchars(number_format($saleAmount, 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>" required>
+                            <select class="field-control" name="prix_vente_devise" aria-label="Devise du prix de vente">
+                                <option value="USD" <?= $saleCurrency === 'USD' ? 'selected' : '' ?>>USD</option>
+                                <option value="CDF" <?= $saleCurrency === 'CDF' ? 'selected' : '' ?>>CDF</option>
+                            </select>
+                        </div>
                     </label>
                     <label class="space-y-2">
                         <span class="text-sm font-semibold text-slate-700">Alerte stock minimal</span>
@@ -148,6 +165,10 @@ $icon = static function (string $name): string {
                 </div>
 
                 <div class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <span class="text-sm text-slate-500">Taux actif</span>
+                        <strong class="text-slate-950">1 USD = <?= number_format($exchangeRate, 2, ',', ' ') ?> CDF</strong>
+                    </div>
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-sm text-slate-500">Marge actuelle</span>
                         <strong class="<?= $margin < 0 ? 'text-red-700' : 'text-slate-950' ?>"><?= $formatMoney($margin) ?></strong>
