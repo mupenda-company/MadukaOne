@@ -746,6 +746,32 @@
     @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md;
   }
 
+  .dashboard-money {
+    @apply min-w-0;
+  }
+
+  .dashboard-money-primary {
+    @apply text-2xl font-black leading-tight tracking-normal text-slate-950 sm:text-3xl;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-money-secondary {
+    @apply mt-2 inline-flex max-w-full rounded-lg bg-slate-50 px-2.5 py-1 text-sm font-bold leading-5 text-slate-600 ring-1 ring-slate-200;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-signal-money {
+    @apply flex w-full min-w-0 flex-col items-start gap-1 text-left sm:w-auto sm:items-end sm:text-right;
+  }
+
+  .dashboard-signal-money strong {
+    @apply text-sm font-black text-slate-950;
+  }
+
+  .dashboard-signal-money small {
+    @apply text-xs font-bold text-slate-500;
+  }
+
   .surface-panel {
     @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
   }

@@ -62,6 +62,7 @@ final class Sale extends Model
                 ];
             }
 
+            $amountReceived = min($amountReceived, $totalAmount);
             $debtAmount = $this->calculateDebt($paymentMethod, $amountReceived, $totalAmount);
 
             if ($debtAmount > 0 && $customerId === null) {
@@ -137,8 +138,10 @@ final class Sale extends Model
         }
     }
 
-    public function allByShop(int $shopId, int $limit = 500): array
+    public function allByShop(int $shopId, ?int $limit = 500, array $filters = []): array
     {
+        [$where, $params] = $this->salesFilterSql($shopId, $filters);
+        $limitSql = $limit === null ? '' : ' LIMIT ' . max(1, min(5000, $limit));
         $statement = Database::connection()->prepare(
             'SELECT
                 sales.id,
@@ -157,12 +160,12 @@ final class Sale extends Model
              LEFT JOIN customers ON customers.id = sales.customer_id
              INNER JOIN users ON users.id = sales.user_id
              LEFT JOIN sale_details ON sale_details.sale_id = sales.id
-             WHERE sales.shop_id = :shop_id
+             WHERE ' . $where . '
              GROUP BY sales.id
              ORDER BY sales.date_vente DESC, sales.id DESC
-             LIMIT ' . max(1, min(1000, $limit))
+             ' . $limitSql
         );
-        $statement->execute(['shop_id' => $shopId]);
+        $statement->execute($params);
 
         return $statement->fetchAll();
     }
@@ -280,6 +283,7 @@ final class Sale extends Model
             $paymentMethod = $this->validPaymentMethod((string) ($data['mode_paiement'] ?? 'cash'));
             $amountReceived = max(0.0, (float) ($data['montant_recu'] ?? 0));
             $totalAmount = (float) ($sale['total_montant'] ?? 0);
+            $amountReceived = min($amountReceived, $totalAmount);
             $debtAmount = $this->calculateDebt($paymentMethod, $amountReceived, $totalAmount);
 
             if ($debtAmount > 0 && $customerId === null) {
@@ -421,6 +425,33 @@ final class Sale extends Model
              WHERE shop_id = :shop_id'
         );
         $statement->execute(['shop_id' => $shopId]);
+        $summary = $statement->fetch();
+
+        return is_array($summary) ? $summary : [
+            'sales_count' => 0,
+            'revenue' => 0,
+            'received' => 0,
+            'debt' => 0,
+            'cancelled_count' => 0,
+        ];
+    }
+
+    public function summaryByShopFiltered(int $shopId, array $filters = []): array
+    {
+        [$where, $params] = $this->salesFilterSql($shopId, $filters);
+        $statement = Database::connection()->prepare(
+            'SELECT
+                COUNT(*) AS sales_count,
+                COALESCE(SUM(CASE WHEN sales.statut = "validee" THEN sales.total_montant ELSE 0 END), 0) AS revenue,
+                COALESCE(SUM(CASE WHEN sales.statut = "validee" THEN sales.montant_recu ELSE 0 END), 0) AS received,
+                COALESCE(SUM(CASE WHEN sales.statut = "validee" THEN sales.montant_dette ELSE 0 END), 0) AS debt,
+                COALESCE(SUM(CASE WHEN sales.statut = "annulee" THEN 1 ELSE 0 END), 0) AS cancelled_count
+             FROM sales
+             LEFT JOIN customers ON customers.id = sales.customer_id
+             INNER JOIN users ON users.id = sales.user_id
+             WHERE ' . $where
+        );
+        $statement->execute($params);
         $summary = $statement->fetch();
 
         return is_array($summary) ? $summary : [
@@ -698,6 +729,75 @@ final class Sale extends Model
         }
 
         return max(0.0, $totalAmount - $amountReceived);
+    }
+
+    private function salesFilterSql(int $shopId, array $filters): array
+    {
+        $where = ['sales.shop_id = :shop_id'];
+        $params = ['shop_id' => $shopId];
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $where[] = '(sales.numero_facture LIKE :search OR customers.nom LIKE :search OR users.nom LIKE :search)';
+            $params['search'] = '%' . $search . '%';
+        }
+
+        $status = strtolower(trim((string) ($filters['status'] ?? 'all')));
+        if (in_array($status, ['validee', 'annulee'], true)) {
+            $where[] = 'sales.statut = :status';
+            $params['status'] = $status;
+        }
+
+        $payment = strtolower(trim((string) ($filters['payment'] ?? 'all')));
+        if (in_array($payment, ['cash', 'mobile_money', 'carte', 'virement', 'credit', 'mixte'], true)) {
+            $where[] = 'sales.mode_paiement = :payment';
+            $params['payment'] = $payment;
+        }
+
+        $debt = strtolower(trim((string) ($filters['debt'] ?? 'all')));
+        if ($debt === 'paid') {
+            $where[] = 'sales.montant_dette <= 0';
+        } elseif ($debt === 'debt') {
+            $where[] = 'sales.montant_dette > 0';
+        }
+
+        $period = strtolower(trim((string) ($filters['period'] ?? 'all')));
+        $now = new DateTimeImmutable('now');
+
+        $dateStart = trim((string) ($filters['date_debut'] ?? ''));
+        $dateEnd = trim((string) ($filters['date_fin'] ?? ''));
+        if ($dateStart !== '') {
+            $start = DateTimeImmutable::createFromFormat('!Y-m-d', substr($dateStart, 0, 10));
+            if ($start instanceof DateTimeImmutable) {
+                $where[] = 'sales.date_vente >= :date_start';
+                $params['date_start'] = $start->format('Y-m-d H:i:s');
+            }
+        }
+        if ($dateEnd !== '') {
+            $end = DateTimeImmutable::createFromFormat('!Y-m-d', substr($dateEnd, 0, 10));
+            if ($end instanceof DateTimeImmutable) {
+                $where[] = 'sales.date_vente < :date_end';
+                $params['date_end'] = $end->modify('+1 day')->format('Y-m-d H:i:s');
+            }
+        }
+
+        if ($dateStart !== '' || $dateEnd !== '') {
+            return [implode(' AND ', $where), $params];
+        }
+
+        if ($period === 'today') {
+            $where[] = 'sales.date_vente >= :date_start AND sales.date_vente < :date_end';
+            $params['date_start'] = $now->setTime(0, 0)->format('Y-m-d H:i:s');
+            $params['date_end'] = $now->setTime(0, 0)->modify('+1 day')->format('Y-m-d H:i:s');
+        } elseif ($period === 'week') {
+            $where[] = 'sales.date_vente >= :date_start';
+            $params['date_start'] = $now->modify('-7 days')->format('Y-m-d H:i:s');
+        } elseif ($period === 'month') {
+            $where[] = 'sales.date_vente >= :date_start';
+            $params['date_start'] = $now->modify('-30 days')->format('Y-m-d H:i:s');
+        }
+
+        return [implode(' AND ', $where), $params];
     }
 
     private function validPaymentMethod(string $paymentMethod): string

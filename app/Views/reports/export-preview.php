@@ -36,6 +36,13 @@ $periodDisplay = $periodDisplay !== '' ? $periodDisplay : ($filterStart !== null
 $formatLabel = $exportFormat === 'xlsx' ? 'Excel' : strtoupper($exportFormat);
 $confirmQuery = ['period' => $period, 'export' => $exportFormat, 'confirm' => '1'];
 $cancelQuery = ['period' => $period];
+foreach (['search', 'status', 'payment', 'debt', 'date_debut', 'date_fin'] as $filterKey) {
+    $filterValue = trim((string) ($reportFilter[$filterKey] ?? ''));
+    if ($filterValue !== '' && $filterValue !== 'all') {
+        $confirmQuery[$filterKey] = $filterValue;
+        $cancelQuery[$filterKey] = $filterValue;
+    }
+}
 if ($period === 'custom') {
     $confirmQuery['date_debut'] = $dateStartValue;
     $confirmQuery['date_fin'] = $dateEndValue;

@@ -2,6 +2,7 @@
 
 $sales = is_array($sales ?? null) ? $sales : [];
 $salesSummary = is_array($salesSummary ?? null) ? $salesSummary : [];
+$salesFilters = is_array($salesFilters ?? null) ? $salesFilters : [];
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
 $salesCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
 $exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
@@ -29,6 +30,19 @@ $modeLabel = static fn (string $mode): string => match ($mode) {
 };
 $statusLabel = static fn (string $status): string => $status === 'annulee' ? 'Annulée' : 'Validée';
 $statusClass = static fn (string $status): string => $status === 'annulee' ? 'bg-red-50 text-red-700' : 'bg-teal-50 text-teal-700';
+$filterValue = static fn (string $key, string $fallback = 'all'): string => (string) ($salesFilters[$key] ?? $fallback);
+$selected = static fn (string $key, string $value): string => $filterValue($key) === $value ? 'selected' : '';
+$dateStartValue = (string) ($salesFilters['date_debut'] ?? '');
+$dateEndValue = (string) ($salesFilters['date_fin'] ?? '');
+$exportFilters = array_filter([
+    'search' => trim((string) ($salesFilters['search'] ?? '')),
+    'status' => $filterValue('status') !== 'all' ? $filterValue('status') : null,
+    'payment' => $filterValue('payment') !== 'all' ? $filterValue('payment') : null,
+    'period' => $filterValue('period') !== 'all' ? $filterValue('period') : null,
+    'debt' => $filterValue('debt') !== 'all' ? $filterValue('debt') : null,
+    'date_debut' => $dateStartValue !== '' ? $dateStartValue : null,
+    'date_fin' => $dateEndValue !== '' ? $dateEndValue : null,
+], static fn ($value): bool => $value !== null && $value !== '');
 $icon = static function (string $name): string {
     $paths = [
         'plus' => '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
@@ -59,8 +73,8 @@ $icon = static function (string $name): string {
             </p>
         </div>
         <div class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[28rem]">
-            <a class="btn-secondary w-full px-4" href="<?= $url('/sales', ['export_preview' => 'xlsx']) ?>">Prévisualiser Excel</a>
-            <a class="btn-secondary w-full px-4" href="<?= $url('/sales', ['export_preview' => 'pdf']) ?>">Prévisualiser PDF</a>
+            <a class="btn-secondary w-full px-4" href="<?= $url('/sales', $exportFilters + ['export_preview' => 'xlsx']) ?>" data-sales-export-link data-export-format="xlsx">Prévisualiser Excel</a>
+            <a class="btn-secondary w-full px-4" href="<?= $url('/sales', $exportFilters + ['export_preview' => 'pdf']) ?>" data-sales-export-link data-export-format="pdf">Prévisualiser PDF</a>
             <a class="btn-primary w-full gap-2 px-4 sm:col-span-2" href="<?= $url('/pos') ?>">
                 <?= $icon('plus') ?>
                 <span>Nouvelle vente</span>
@@ -74,7 +88,7 @@ $icon = static function (string $name): string {
             <p class="mt-2 text-2xl font-bold"><?= (int) ($salesSummary['sales_count'] ?? 0) ?></p>
         </article>
         <article class="stat-card">
-            <p class="text-sm text-slate-500">Chiffre d’affaires</p>
+            <p class="text-sm text-slate-500">Chiffre d'affaires</p>
             <p class="mt-2 text-2xl font-bold text-teal-700"><?= $money($salesSummary['revenue'] ?? 0) ?></p>
         </article>
         <article class="stat-card">
@@ -99,35 +113,37 @@ $icon = static function (string $name): string {
             </button>
         </div>
 
-        <div class="mt-5 grid gap-3 lg:grid-cols-[1.3fr_.75fr_.75fr_.75fr_.75fr]">
+        <div class="mt-5 grid gap-3 lg:grid-cols-[1.2fr_.75fr_.75fr_.7fr_.7fr_.7fr_.7fr]">
             <label class="relative block">
                 <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><?= $icon('search') ?></span>
-                <input class="field-control pl-11" type="search" placeholder="Facture, client, caissier" data-sales-search>
+                <input class="field-control pl-11" type="search" placeholder="Facture, client, caissier" value="<?= $safe($salesFilters['search'] ?? '') ?>" data-sales-search>
             </label>
             <select class="field-control" data-sales-status>
-                <option value="all">Tous statuts</option>
-                <option value="validee">Validées</option>
-                <option value="annulee">Annulées</option>
+                <option value="all" <?= $selected('status', 'all') ?>>Tous statuts</option>
+                <option value="validee" <?= $selected('status', 'validee') ?>>Validées</option>
+                <option value="annulee" <?= $selected('status', 'annulee') ?>>Annulées</option>
             </select>
             <select class="field-control" data-sales-payment>
-                <option value="all">Tous paiements</option>
-                <option value="cash">Cash</option>
-                <option value="mobile_money">Mobile money</option>
-                <option value="carte">Carte</option>
-                <option value="virement">Virement</option>
-                <option value="credit">Crédit</option>
-                <option value="mixte">Mixte</option>
+                <option value="all" <?= $selected('payment', 'all') ?>>Tous paiements</option>
+                <option value="cash" <?= $selected('payment', 'cash') ?>>Cash</option>
+                <option value="mobile_money" <?= $selected('payment', 'mobile_money') ?>>Mobile money</option>
+                <option value="carte" <?= $selected('payment', 'carte') ?>>Carte</option>
+                <option value="virement" <?= $selected('payment', 'virement') ?>>Virement</option>
+                <option value="credit" <?= $selected('payment', 'credit') ?>>Crédit</option>
+                <option value="mixte" <?= $selected('payment', 'mixte') ?>>Mixte</option>
             </select>
             <select class="field-control" data-sales-period>
-                <option value="all">Toute période</option>
-                <option value="today">Aujourd’hui</option>
-                <option value="week">7 derniers jours</option>
-                <option value="month">30 derniers jours</option>
+                <option value="all" <?= $selected('period', 'all') ?>>Toute période</option>
+                <option value="today" <?= $selected('period', 'today') ?>>Aujourd'hui</option>
+                <option value="week" <?= $selected('period', 'week') ?>>7 derniers jours</option>
+                <option value="month" <?= $selected('period', 'month') ?>>30 derniers jours</option>
             </select>
+            <input class="field-control" type="date" value="<?= $safe($dateStartValue, '') ?>" data-sales-date-start aria-label="Date début">
+            <input class="field-control" type="date" value="<?= $safe($dateEndValue, '') ?>" data-sales-date-end aria-label="Date fin">
             <select class="field-control" data-sales-debt>
-                <option value="all">Tous montants</option>
-                <option value="paid">Payées</option>
-                <option value="debt">Avec crédit</option>
+                <option value="all" <?= $selected('debt', 'all') ?>>Tous montants</option>
+                <option value="paid" <?= $selected('debt', 'paid') ?>>Payées</option>
+                <option value="debt" <?= $selected('debt', 'debt') ?>>Avec crédit</option>
             </select>
         </div>
     </section>
@@ -244,10 +260,13 @@ $icon = static function (string $name): string {
         const status = root.querySelector('[data-sales-status]');
         const payment = root.querySelector('[data-sales-payment]');
         const period = root.querySelector('[data-sales-period]');
+        const dateStart = root.querySelector('[data-sales-date-start]');
+        const dateEnd = root.querySelector('[data-sales-date-end]');
         const debt = root.querySelector('[data-sales-debt]');
         const count = root.querySelector('[data-sales-count]');
         const empty = root.querySelector('[data-sales-empty]');
         const reset = root.querySelector('[data-sales-reset]');
+        const exportLinks = [...root.querySelectorAll('[data-sales-export-link]')];
         const day = 24 * 60 * 60;
 
         const matchesPeriod = (timestamp, value) => {
@@ -274,12 +293,44 @@ $icon = static function (string $name): string {
             return true;
         };
 
+        const currentFilters = () => ({
+            search: (search?.value || '').trim(),
+            status: status?.value || 'all',
+            payment: payment?.value || 'all',
+            period: period?.value || 'all',
+            date_debut: dateStart?.value || '',
+            date_fin: dateEnd?.value || '',
+            debt: debt?.value || 'all',
+        });
+
+        const updateExportLinks = () => {
+            const filters = currentFilters();
+
+            exportLinks.forEach((link) => {
+                const nextUrl = new URL(link.getAttribute('href'), window.location.href);
+                const format = link.dataset.exportFormat || nextUrl.searchParams.get('export_preview') || 'pdf';
+                nextUrl.search = '';
+                nextUrl.searchParams.set('export_preview', format);
+
+                Object.entries(filters).forEach(([key, value]) => {
+                    if (value && value !== 'all') {
+                        nextUrl.searchParams.set(key, value);
+                    }
+                });
+
+                link.setAttribute('href', nextUrl.pathname + nextUrl.search);
+            });
+        };
+
         const applyFilters = () => {
-            const query = (search?.value || '').trim().toLowerCase();
-            const statusValue = status?.value || 'all';
-            const paymentValue = payment?.value || 'all';
-            const periodValue = period?.value || 'all';
-            const debtValue = debt?.value || 'all';
+            const filters = currentFilters();
+            const query = filters.search.toLowerCase();
+            const statusValue = filters.status;
+            const paymentValue = filters.payment;
+            const periodValue = filters.period;
+            const startValue = filters.date_debut ? Math.floor(new Date(`${filters.date_debut}T00:00:00`).getTime() / 1000) : null;
+            const endValue = filters.date_fin ? Math.floor(new Date(`${filters.date_fin}T23:59:59`).getTime() / 1000) : null;
+            const debtValue = filters.debt;
             let visible = 0;
 
             rows.forEach((row) => {
@@ -289,7 +340,9 @@ $icon = static function (string $name): string {
                     (statusValue === 'all' || row.dataset.status === statusValue) &&
                     (paymentValue === 'all' || row.dataset.payment === paymentValue) &&
                     (debtValue === 'all' || row.dataset.debt === debtValue) &&
-                    matchesPeriod(timestamp, periodValue);
+                    (startValue === null || timestamp >= startValue) &&
+                    (endValue === null || timestamp <= endValue) &&
+                    ((startValue !== null || endValue !== null) || matchesPeriod(timestamp, periodValue));
 
                 row.classList.toggle('hidden', !isVisible);
                 visible += isVisible ? 1 : 0;
@@ -300,9 +353,10 @@ $icon = static function (string $name): string {
             }
 
             empty?.classList.toggle('hidden', visible !== 0);
+            updateExportLinks();
         };
 
-        [search, status, payment, period, debt].forEach((control) => {
+        [search, status, payment, period, dateStart, dateEnd, debt].forEach((control) => {
             control?.addEventListener('input', applyFilters);
             control?.addEventListener('change', applyFilters);
         });
@@ -312,6 +366,8 @@ $icon = static function (string $name): string {
             if (status) status.value = 'all';
             if (payment) payment.value = 'all';
             if (period) period.value = 'all';
+            if (dateStart) dateStart.value = '';
+            if (dateEnd) dateEnd.value = '';
             if (debt) debt.value = 'all';
             applyFilters();
         });

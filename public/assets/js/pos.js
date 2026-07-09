@@ -14,16 +14,40 @@
   const exchangeRateValue = Number(root.dataset.posExchangeRate || 2800);
   const exchangeRate = exchangeRateValue > 0 ? exchangeRateValue : 2800;
   const money = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: posCurrency, currencyDisplay: 'code' });
+  const currencyFormatters = {
+    USD: new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD', currencyDisplay: 'code' }),
+    CDF: new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'CDF', currencyDisplay: 'code' }),
+  };
   const displayAmount = (usdAmount) => (posCurrency === 'CDF' ? usdAmount * exchangeRate : usdAmount);
-  const inputAmountToUsd = (amount) => (posCurrency === 'CDF' ? amount / exchangeRate : amount);
+  const amountToUsd = (amount, currency) => (currency === 'CDF' ? amount / exchangeRate : amount);
+  const usdToAmount = (usdAmount, currency) => (currency === 'CDF' ? usdAmount * exchangeRate : usdAmount);
+  const inputAmountToUsd = (amount) => amountToUsd(amount, receivedCurrencySelect?.value || posCurrency);
   const formatMoney = (usdAmount) => money.format(displayAmount(Number(usdAmount || 0)));
+  const formatCurrency = (amount, currency) => (currencyFormatters[currency] || currencyFormatters.USD).format(Number(amount || 0));
+  const formatMoneyDual = (usdAmount) => {
+    const amount = Number(usdAmount || 0);
+    const primaryCurrency = posCurrency;
+    const secondaryCurrency = posCurrency === 'CDF' ? 'USD' : 'CDF';
+
+    return {
+      primary: formatCurrency(usdToAmount(amount, primaryCurrency), primaryCurrency),
+      secondary: formatCurrency(usdToAmount(amount, secondaryCurrency), secondaryCurrency),
+    };
+  };
+  const formatReceivedCurrency = (usdAmount, forcedCurrency = null) => {
+    const currency = forcedCurrency || receivedCurrencySelect?.value || posCurrency;
+
+    return formatCurrency(usdToAmount(Number(usdAmount || 0), currency), currency);
+  };
   const products = [...root.querySelectorAll('[data-pos-product]')];
   const cartTarget = root.querySelector('[data-pos-cart]');
   const emptyTarget = root.querySelector('[data-pos-empty]');
   const totalTarget = root.querySelector('[data-pos-total]');
+  const totalSecondaryTarget = root.querySelector('[data-pos-total-secondary]');
   const countTarget = root.querySelector('[data-pos-count]');
   const changeTarget = root.querySelector('[data-pos-change]');
   const receivedInput = root.querySelector('[data-pos-received]');
+  const receivedCurrencySelect = root.querySelector('[data-pos-received-currency]');
   const messageTarget = root.querySelector('[data-pos-message]');
   const submitButton = root.querySelector('[data-pos-submit]');
   const latestSalesTarget = root.querySelector('[data-pos-latest-sales]');
@@ -246,12 +270,16 @@
 
   const buildSalePayload = () => {
     const paymentMethod = root.querySelector('[data-pos-payment]')?.value || 'cash';
-    const received = inputAmountToUsd(Number(receivedInput?.value || 0));
+    const receivedCurrency = receivedCurrencySelect?.value || posCurrency;
+    const enteredReceived = Number(receivedInput?.value || 0);
+    const received = amountToUsd(enteredReceived, receivedCurrency);
 
     return {
       customer_id: selectedCustomer ? Number(selectedCustomer.id) : null,
       payment_method: paymentMethod,
       amount_received: received,
+      amount_received_entered: enteredReceived,
+      received_currency: receivedCurrency,
       total_amount: total(),
       items: [...cart.values()].map((item) => ({
         product_id: Number(item.id),
@@ -278,6 +306,8 @@
     const received = Number(payload.amount_received || 0);
     const saleTotal = Number(payload.total_amount || 0);
     const diff = received - saleTotal;
+    const receivedCurrency = payload.received_currency || posCurrency;
+    const enteredReceived = Number(payload.amount_received_entered || 0);
 
     if (confirmClient) {
       confirmClient.textContent = selectedCustomer ? customerLabel(selectedCustomer) : 'Client comptant';
@@ -313,9 +343,14 @@
     }
 
     if (confirmTotal) confirmTotal.textContent = formatMoney(saleTotal);
-    if (confirmReceived) confirmReceived.textContent = formatMoney(received);
+    if (confirmReceived) {
+      confirmReceived.textContent = receivedCurrency === posCurrency
+        ? formatCurrency(enteredReceived, receivedCurrency)
+        : `${formatCurrency(enteredReceived, receivedCurrency)} (${formatMoney(received)})`;
+    }
     if (confirmChange) {
-      confirmChange.textContent = formatMoney(diff);
+      const diffLabel = diff >= 0 ? 'Monnaie à rendre' : 'Reste à payer';
+      confirmChange.textContent = `${diffLabel}: ${formatReceivedCurrency(Math.abs(diff), receivedCurrency)}`;
       confirmChange.classList.toggle('text-red-700', diff < 0);
       confirmChange.classList.toggle('text-teal-700', diff >= 0);
     }
@@ -330,6 +365,11 @@
     if (!payload) {
       return;
     }
+
+    const payloadToSubmit = {
+      ...payload,
+      amount_received: Math.min(Number(payload.amount_received || 0), Number(payload.total_amount || 0)),
+    };
 
     submitButton.disabled = true;
     submitButton.textContent = 'Validation...';
@@ -346,7 +386,7 @@
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadToSubmit),
       });
       const data = await response.json();
 
@@ -430,11 +470,15 @@
   };
 
   const updatePayment = () => {
-    const received = inputAmountToUsd(Number(receivedInput?.value || 0));
+    const receivedCurrency = receivedCurrencySelect?.value || posCurrency;
+    const enteredReceived = Number(receivedInput?.value || 0);
+    const received = amountToUsd(enteredReceived, receivedCurrency);
     const diff = received - total();
 
     if (changeTarget) {
-      changeTarget.textContent = formatMoney(diff);
+      const label = diff >= 0 ? 'Monnaie à rendre' : 'Reste à payer';
+      const equivalent = receivedCurrency === posCurrency ? '' : ` (${formatMoney(Math.abs(diff))})`;
+      changeTarget.textContent = `${label}: ${formatCurrency(usdToAmount(Math.abs(diff), receivedCurrency), receivedCurrency)}${equivalent}`;
       changeTarget.classList.toggle('text-red-700', diff < 0);
       changeTarget.classList.toggle('text-teal-700', diff >= 0);
     }
@@ -458,13 +502,13 @@
           </div>
           <button class="rounded-lg px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50" type="button" data-pos-remove>Retirer</button>
         </div>
-        <div class="mt-3 flex items-center justify-between gap-3">
-          <div class="inline-flex items-center rounded-lg border border-slate-200 bg-white">
+        <div class="mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+          <div class="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white">
             <button class="px-3 py-2 font-bold" type="button" data-pos-dec>-</button>
             <span class="min-w-8 text-center text-sm font-bold" data-pos-qty></span>
             <button class="px-3 py-2 font-bold" type="button" data-pos-inc>+</button>
           </div>
-          <strong class="text-sm text-slate-950" data-pos-line-total></strong>
+          <strong class="min-w-0 break-words text-right text-sm text-slate-950" data-pos-line-total></strong>
         </div>
       `;
       row.querySelector('p').textContent = item.name;
@@ -475,7 +519,11 @@
     });
 
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    totalTarget.textContent = formatMoney(total());
+    const totalAmounts = formatMoneyDual(total());
+    totalTarget.textContent = totalAmounts.primary;
+    if (totalSecondaryTarget) {
+      totalSecondaryTarget.textContent = totalAmounts.secondary;
+    }
     countTarget.textContent = `${itemCount} article${itemCount > 1 ? 's' : ''}`;
     updatePayment();
   };
@@ -592,6 +640,7 @@
   });
 
   receivedInput?.addEventListener('input', updatePayment);
+  receivedCurrencySelect?.addEventListener('change', updatePayment);
 
   confirmCloseButtons.forEach((button) => button.addEventListener('click', closeSaleConfirmation));
 
@@ -639,8 +688,10 @@
     }
 
     const paymentMethod = root.querySelector('[data-pos-payment]')?.value || 'cash';
+    const receivedCurrency = receivedCurrencySelect?.value || posCurrency;
+    const enteredReceived = Number(receivedInput?.value || 0);
 
-    if ((paymentMethod === 'credit' || inputAmountToUsd(Number(receivedInput?.value || 0)) < total()) && !selectedCustomer) {
+    if ((paymentMethod === 'credit' || amountToUsd(enteredReceived, receivedCurrency) < total()) && !selectedCustomer) {
       showMessage('Sélectionnez ou ajoutez un client pour une vente à crédit.');
       customerSearch?.focus();
       renderCustomerResults();
@@ -650,7 +701,9 @@
     const payload = {
       customer_id: selectedCustomer ? Number(selectedCustomer.id) : null,
       payment_method: paymentMethod,
-      amount_received: inputAmountToUsd(Number(receivedInput?.value || 0)),
+      amount_received: Math.min(amountToUsd(enteredReceived, receivedCurrency), total()),
+      amount_received_entered: enteredReceived,
+      received_currency: receivedCurrency,
       total_amount: total(),
       items: [...cart.values()].map((item) => ({
         product_id: Number(item.id),
