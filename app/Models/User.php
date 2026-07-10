@@ -54,7 +54,12 @@ final class User extends Model
     public function findByIdAndShop(int $id, int $shopId): ?array
     {
         $statement = Database::connection()->prepare(
-            $this->baseSelect() . ' WHERE users.id = :id AND users.shop_id = :shop_id LIMIT 1'
+            $this->baseSelect() . " WHERE users.id = :id AND users.shop_id = :shop_id
+                AND (
+                    roles.nom IS NULL
+                    OR LOWER(REPLACE(REPLACE(roles.nom, '-', ' '), '_', ' ')) NOT IN ('super admin', 'super administrateur')
+                )
+              LIMIT 1"
         );
         $statement->execute([
             'id' => $id,
@@ -129,7 +134,11 @@ final class User extends Model
 
     public function allByShop(int $shopId, bool $activeOnly = true): array
     {
-        $sql = $this->baseSelect() . ' WHERE users.shop_id = :shop_id';
+        $sql = $this->baseSelect() . " WHERE users.shop_id = :shop_id
+            AND (
+                roles.nom IS NULL
+                OR LOWER(REPLACE(REPLACE(roles.nom, '-', ' '), '_', ' ')) NOT IN ('super admin', 'super administrateur')
+            )";
 
         if ($activeOnly) {
             $sql .= ' AND users.actif = 1';
@@ -349,6 +358,36 @@ final class User extends Model
         return $statement->rowCount() > 0;
     }
 
+    public function updateProfile(int $id, array $data): bool
+    {
+        $nom = trim((string) ($data['nom'] ?? ''));
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
+
+        if ($id < 1 || $nom === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new InvalidArgumentException('Donnees de profil invalides.');
+        }
+
+        if ($this->emailBelongsToAnotherUser($email, $id)) {
+            throw new InvalidArgumentException('Cette adresse email est deja utilisee.');
+        }
+
+        $statement = Database::connection()->prepare(
+            'UPDATE users
+             SET nom = :nom,
+                 email = :email,
+                 telephone = :telephone
+             WHERE id = :id'
+        );
+        $statement->execute([
+            'nom' => $nom,
+            'email' => $email,
+            'telephone' => $this->nullableString($data['telephone'] ?? null),
+            'id' => $id,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
     public function deleteUser(int $id): bool
     {
         if ($id < 1) {
@@ -522,9 +561,11 @@ final class User extends Model
             'email' => (string) $user['email'],
             'role' => $this->resolveRole($user),
             'role_id' => isset($user['role_id']) ? (int) $user['role_id'] : null,
+            'role_name' => (string) ($user['role_name'] ?? ''),
             'role_legacy' => (string) ($user['role_legacy'] ?? 'agent'),
             'shop_id' => isset($user['shop_id']) ? (int) $user['shop_id'] : null,
             'auth_provider' => (string) ($user['auth_provider'] ?? 'local'),
+            'is_saas_admin' => $this->isSaasAdminUser($user),
         ];
     }
 
@@ -540,11 +581,26 @@ final class User extends Model
         };
     }
 
+    public function isSaasAdminUser(array $user): bool
+    {
+        $roleName = strtolower(trim((string) ($user['role_name'] ?? '')));
+        $roleName = str_replace(['-', ' '], '_', $roleName);
+
+        return in_array($roleName, ['super_admin', 'super_administrateur'], true);
+    }
+
     public function verifyPassword(array $user, string $password): bool
     {
         $hash = $user['password_hash'] ?? null;
 
         return is_string($hash) && $hash !== '' && password_verify($password, $hash);
+    }
+
+    public function hasPassword(array $user): bool
+    {
+        $hash = $user['password_hash'] ?? null;
+
+        return is_string($hash) && $hash !== '';
     }
 
     private function baseSelect(): string
@@ -592,6 +648,22 @@ final class User extends Model
         $role = strtolower(trim($role));
 
         return in_array($role, self::LEGACY_ROLES, true) ? $role : 'agent';
+    }
+
+    private function emailBelongsToAnotherUser(string $email, int $userId): bool
+    {
+        $statement = Database::connection()->prepare(
+            'SELECT COUNT(*)
+             FROM users
+             WHERE email = :email
+               AND id <> :id'
+        );
+        $statement->execute([
+            'email' => strtolower(trim($email)),
+            'id' => $userId,
+        ]);
+
+        return (int) $statement->fetchColumn() > 0;
     }
 
     private function legacyRoleForRoleId(int $roleId): string
