@@ -75,6 +75,10 @@ abstract class BaseSaasAdminController
             return 'Le nom de la boutique est obligatoire.';
         }
 
+        if ((int) ($data['category_id'] ?? 0) < 1) {
+            return 'La categorie de la boutique est obligatoire.';
+        }
+
         if (!in_array(($data['devise_principale'] ?? ''), ['USD', 'CDF'], true)) {
             return 'La devise principale doit etre USD ou CDF.';
         }

@@ -3,6 +3,12 @@ $shops = is_array($shops ?? null) ? $shops : [];
 $plans = is_array($plans ?? null) ? $plans : [];
 $features = is_array($features ?? null) ? $features : [];
 $featureIdsByShop = is_array($featureIdsByShop ?? null) ? $featureIdsByShop : [];
+$assignments = is_array($assignments ?? null) ? $assignments : [];
+$categoryPlanAssignments = is_array($assignments['category_plans'] ?? null) ? $assignments['category_plans'] : [];
+$featuresById = [];
+foreach ($features as $feature) {
+    $featuresById[(int) ($feature['id'] ?? 0)] = $feature;
+}
 $safe = static fn ($value, string $fallback = ''): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
 $limitText = static function ($value, string $singular, string $plural): string {
@@ -95,28 +101,44 @@ $planFeatures = static function ($description): array {
         </section>
 
         <section class="surface-panel">
-            <div class="panel-header"><div><h2 class="font-bold text-slate-950">Abonnements par boutique</h2><p class="mt-1 text-sm text-slate-500">Plan, statut, renouvellement et modules autorises.</p></div></div>
+            <div class="panel-header"><div><h2 class="font-bold text-slate-950">Abonnements par boutique</h2><p class="mt-1 text-sm text-slate-500">Plan obligatoire, filtre par categorie, renouvellement et modules inclus dans le plan.</p></div></div>
             <div class="mt-5 space-y-4">
                 <?php foreach ($shops as $shop): ?>
-                    <?php $selectedFeatures = array_map('intval', $featureIdsByShop[(int) $shop['id']] ?? []); ?>
+                    <?php
+                    $shopId = (int) ($shop['id'] ?? 0);
+                    $selectedFeatures = array_map('intval', $featureIdsByShop[$shopId] ?? []);
+                    $currentPlanId = (int) ($shop['plan_id'] ?? 0);
+                    $categoryId = (int) ($shop['category_id'] ?? 0);
+                    $allowedPlanIds = array_map('intval', $categoryPlanAssignments[$categoryId] ?? []);
+                    $availablePlans = array_values(array_filter($plans, static fn (array $plan): bool => in_array((int) ($plan['id'] ?? 0), $allowedPlanIds, true)));
+                    ?>
                     <form id="shop-<?= (int) $shop['id'] ?>" class="rounded-lg border border-slate-200 p-4" method="post" action="<?= $url('/saas-admin/abonnements/boutiques/' . (int) $shop['id']) ?>">
                         <div class="panel-header">
                             <div><h3 class="font-bold text-slate-950"><?= $safe($shop['nom'] ?? '') ?></h3><p class="mt-1 text-sm text-slate-500"><?= $safe($shop['plan_name'] ?? 'Sans plan') ?> · <?= $safe($shop['subscription_status'] ?? 'non configure') ?></p></div>
                             <button class="btn-secondary" type="submit">Enregistrer</button>
                         </div>
                         <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                            <div><label class="mb-2 block text-sm font-semibold">Plan</label><select class="field-control" name="plan_id"><option value="">Aucun plan</option><?php foreach ($plans as $plan): ?><option value="<?= (int) $plan['id'] ?>" <?= ($shop['plan_name'] ?? '') === ($plan['nom'] ?? '') ? 'selected' : '' ?>><?= $safe($plan['nom'] ?? '') ?> - <?= $money($plan['prix_mensuel_usd'] ?? 0) ?></option><?php endforeach; ?></select></div>
+                            <div><label class="mb-2 block text-sm font-semibold">Plan</label><select class="field-control" name="plan_id" required><option value="">Selectionner un plan</option><?php foreach ($availablePlans as $plan): ?><option value="<?= (int) $plan['id'] ?>" <?= $currentPlanId === (int) ($plan['id'] ?? 0) ? 'selected' : '' ?>><?= $safe($plan['nom'] ?? '') ?> - <?= $money($plan['prix_mensuel_usd'] ?? 0) ?></option><?php endforeach; ?></select><?php if ($availablePlans === []): ?><p class="mt-2 text-xs font-semibold text-red-600">Aucun plan n'est classe dans cette categorie.</p><?php endif; ?></div>
                             <div><label class="mb-2 block text-sm font-semibold">Statut</label><select class="field-control" name="statut"><?php foreach (['trial','active','past_due','suspended','cancelled'] as $status): ?><option value="<?= $status ?>" <?= ($shop['subscription_status'] ?? 'trial') === $status ? 'selected' : '' ?>><?= $safe($status) ?></option><?php endforeach; ?></select></div>
                             <div><label class="mb-2 block text-sm font-semibold">Debut</label><input class="field-control" name="date_debut" type="date" value="<?= $safe($shop['date_debut'] ?? date('Y-m-d')) ?>"></div>
                             <div><label class="mb-2 block text-sm font-semibold">Fin</label><input class="field-control" name="date_fin" type="date" value="<?= $safe($shop['date_fin'] ?? '') ?>"></div>
                         </div>
                         <label class="mt-3 inline-flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold"><input class="h-4 w-4" type="checkbox" name="renouvellement_auto" value="1" <?= (int) ($shop['renouvellement_auto'] ?? 1) === 1 ? 'checked' : '' ?>> Renouvellement automatique</label>
-                        <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                            <?php foreach ($features as $feature): ?>
-                                <label class="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold"><input class="h-4 w-4" type="checkbox" name="feature_ids[]" value="<?= (int) $feature['id'] ?>" <?= in_array((int) $feature['id'], $selectedFeatures, true) ? 'checked' : '' ?>> <?= $safe($feature['nom'] ?? '') ?></label>
-                            <?php endforeach; ?>
+                        <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <p class="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Fonctionnalites disponibles</p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <?php foreach ($selectedFeatures as $featureId): ?>
+                                    <?php if (isset($featuresById[$featureId])): ?>
+                                        <span class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm"><?= $safe($featuresById[$featureId]['nom'] ?? '') ?></span>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                                <?php if ($selectedFeatures === []): ?>
+                                    <span class="text-sm font-semibold text-slate-500">Aucune fonctionnalite active pour ce plan, ou le plan n'est pas classe dans la categorie de la boutique.</span>
+                                <?php endif; ?>
+                            </div>
+                            <p class="mt-3 text-xs text-slate-500">Pour modifier ces modules, utilisez la page Fonctionnalites.</p>
                         </div>
-                        <textarea class="field-control mt-3 min-h-20" name="notes" placeholder="Notes internes"></textarea>
+                        <textarea class="field-control mt-3 min-h-20" name="notes" placeholder="Notes internes"><?= $safe($shop['subscription_notes'] ?? '') ?></textarea>
                     </form>
                 <?php endforeach; ?>
             </div>

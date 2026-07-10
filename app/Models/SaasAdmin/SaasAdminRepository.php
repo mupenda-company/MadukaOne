@@ -93,6 +93,28 @@ final class SaasAdminRepository extends Model
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
         $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS saas_category_plans (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                category_id BIGINT UNSIGNED NOT NULL,
+                plan_id BIGINT UNSIGNED NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_saas_category_plans (category_id, plan_id),
+                CONSTRAINT fk_saas_category_plans_category FOREIGN KEY (category_id) REFERENCES shop_categories(id) ON UPDATE CASCADE ON DELETE CASCADE,
+                CONSTRAINT fk_saas_category_plans_plan FOREIGN KEY (plan_id) REFERENCES saas_subscription_plans(id) ON UPDATE CASCADE ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS saas_plan_features (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                plan_id BIGINT UNSIGNED NOT NULL,
+                feature_id BIGINT UNSIGNED NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_saas_plan_features (plan_id, feature_id),
+                CONSTRAINT fk_saas_plan_features_plan FOREIGN KEY (plan_id) REFERENCES saas_subscription_plans(id) ON UPDATE CASCADE ON DELETE CASCADE,
+                CONSTRAINT fk_saas_plan_features_feature FOREIGN KEY (feature_id) REFERENCES saas_features(id) ON UPDATE CASCADE ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $pdo->exec(
             "CREATE TABLE IF NOT EXISTS saas_settings (
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 setting_key VARCHAR(120) NOT NULL,
@@ -220,9 +242,11 @@ final class SaasAdminRepository extends Model
                 COUNT(DISTINCT sales.id) AS sales_count,
                 COALESCE(SUM(CASE WHEN sales.statut = 'validee' THEN sales.total_montant ELSE 0 END), 0) AS sales_total,
                 subscriptions.statut AS subscription_status,
+                subscriptions.plan_id,
                 subscriptions.date_debut,
                 subscriptions.date_fin,
                 subscriptions.renouvellement_auto,
+                subscriptions.notes AS subscription_notes,
                 plans.nom AS plan_name,
                 plans.prix_mensuel_usd
              FROM shops
@@ -443,7 +467,14 @@ final class SaasAdminRepository extends Model
     {
         $this->ensureSchema();
 
-        return Database::connection()->query('SELECT * FROM saas_features ORDER BY categorie ASC, nom ASC')->fetchAll();
+        return Database::connection()->query(
+            'SELECT features.*,
+                    COUNT(DISTINCT plan_features.plan_id) AS plans_count
+             FROM saas_features features
+             LEFT JOIN saas_plan_features plan_features ON plan_features.feature_id = features.id
+             GROUP BY features.id, features.code, features.nom, features.description, features.categorie, features.actif, features.created_at, features.updated_at
+             ORDER BY features.categorie ASC, features.nom ASC'
+        )->fetchAll();
     }
 
     public function createFeature(array $data): int
@@ -479,6 +510,28 @@ final class SaasAdminRepository extends Model
         $statement->execute(['id' => $id]);
 
         return $statement->rowCount() > 0;
+    }
+
+    public function featureAssignmentMaps(): array
+    {
+        $this->ensureSchema();
+
+        return [
+            'plans' => $this->assignmentMap('saas_plan_features', 'plan_id', 'feature_id'),
+            'category_plans' => $this->assignmentMap('saas_category_plans', 'category_id', 'plan_id'),
+        ];
+    }
+
+    public function syncCategoryPlans(int $categoryId, array $planIds): void
+    {
+        $this->ensureSchema();
+        $this->syncFeatureAssignments('saas_category_plans', 'category_id', 'plan_id', $categoryId, $planIds);
+    }
+
+    public function syncPlanFeatures(int $planId, array $featureIds): void
+    {
+        $this->ensureSchema();
+        $this->syncFeatureAssignments('saas_plan_features', 'plan_id', 'feature_id', $planId, $featureIds);
     }
 
     public function plans(): array
@@ -586,6 +639,16 @@ final class SaasAdminRepository extends Model
     public function assignSubscription(int $shopId, array $data): bool
     {
         $this->ensureSchema();
+        $planId = $this->nullablePositiveInt($data['plan_id'] ?? null);
+
+        if ($planId === null) {
+            throw new InvalidArgumentException('Le plan d abonnement est obligatoire pour une boutique.');
+        }
+
+        if (!$this->isPlanAllowedForShopCategory($shopId, $planId)) {
+            throw new InvalidArgumentException('Ce plan n est pas disponible pour la categorie de cette boutique.');
+        }
+
         $statement = Database::connection()->prepare(
             "INSERT INTO saas_subscriptions (shop_id, plan_id, statut, date_debut, date_fin, renouvellement_auto, notes)
              VALUES (:shop_id, :plan_id, :statut, :date_debut, :date_fin, :renouvellement_auto, :notes)
@@ -599,7 +662,7 @@ final class SaasAdminRepository extends Model
         );
         $statement->execute([
             'shop_id' => $shopId,
-            'plan_id' => $this->nullablePositiveInt($data['plan_id'] ?? null),
+            'plan_id' => $planId,
             'statut' => $this->subscriptionStatus($data['statut'] ?? 'trial'),
             'date_debut' => $this->dateOrToday($data['date_debut'] ?? null),
             'date_fin' => $this->nullableDate($data['date_fin'] ?? null),
@@ -607,16 +670,25 @@ final class SaasAdminRepository extends Model
             'notes' => $this->nullableString($data['notes'] ?? null),
         ]);
 
-        $featureIds = array_map('intval', is_array($data['feature_ids'] ?? null) ? $data['feature_ids'] : []);
-        $this->syncShopFeatures($shopId, $featureIds);
-
         return true;
     }
 
     public function featureIdsByShop(): array
     {
         $this->ensureSchema();
-        $rows = Database::connection()->query('SELECT shop_id, feature_id FROM saas_shop_features WHERE actif = 1')->fetchAll();
+        $rows = Database::connection()->query(
+            'SELECT shops.id AS shop_id, features.id AS feature_id
+             FROM shops
+             INNER JOIN saas_subscriptions subscriptions ON subscriptions.shop_id = shops.id
+             INNER JOIN saas_category_plans category_plans ON category_plans.category_id = shops.category_id
+                AND category_plans.plan_id = subscriptions.plan_id
+             INNER JOIN saas_plan_features plan_features ON plan_features.plan_id = subscriptions.plan_id
+             INNER JOIN saas_features features ON features.id = plan_features.feature_id
+                AND features.actif = 1
+             WHERE shops.category_id IS NOT NULL
+               AND subscriptions.plan_id IS NOT NULL
+               AND subscriptions.statut IN ("trial", "active")'
+        )->fetchAll();
         $map = [];
 
         foreach ($rows as $row) {
@@ -740,6 +812,37 @@ final class SaasAdminRepository extends Model
                 ]);
             }
         }
+
+        $this->seedCategoryPlans();
+    }
+
+    private function seedCategoryPlans(): void
+    {
+        $pdo = Database::connection();
+        $linksCount = (int) $pdo->query('SELECT COUNT(*) FROM saas_category_plans')->fetchColumn();
+
+        if ($linksCount > 0) {
+            return;
+        }
+
+        $pdo->exec(
+            'INSERT IGNORE INTO saas_category_plans (category_id, plan_id)
+             SELECT categories.id, plans.id
+             FROM shop_categories categories
+             CROSS JOIN saas_subscription_plans plans
+             WHERE categories.actif = 1
+               AND plans.actif = 1'
+        );
+
+        $pdo->exec(
+            "INSERT INTO saas_subscriptions (shop_id, plan_id, statut, date_debut, renouvellement_auto)
+             SELECT shops.id, MIN(category_plans.plan_id), 'trial', CURRENT_DATE, 1
+             FROM shops
+             INNER JOIN saas_category_plans category_plans ON category_plans.category_id = shops.category_id
+             LEFT JOIN saas_subscriptions subscriptions ON subscriptions.shop_id = shops.id
+             WHERE subscriptions.id IS NULL
+             GROUP BY shops.id"
+        );
     }
 
     private function syncShopFeatures(int $shopId, array $featureIds): void
@@ -755,6 +858,56 @@ final class SaasAdminRepository extends Model
         foreach (array_unique(array_filter($featureIds, static fn (int $id): bool => $id > 0)) as $featureId) {
             $statement->execute(['shop_id' => $shopId, 'feature_id' => $featureId]);
         }
+    }
+
+    private function assignmentMap(string $table, string $ownerColumn, string $assignedColumn): array
+    {
+        $rows = Database::connection()->query("SELECT {$ownerColumn} AS owner_id, {$assignedColumn} AS assigned_id FROM {$table}")->fetchAll();
+        $map = [];
+
+        foreach ($rows as $row) {
+            $map[(int) $row['owner_id']][] = (int) $row['assigned_id'];
+        }
+
+        return $map;
+    }
+
+    private function syncFeatureAssignments(string $table, string $ownerColumn, string $assignedColumn, int $ownerId, array $assignedIds): void
+    {
+        if ($ownerId < 1) {
+            throw new InvalidArgumentException('Selection invalide.');
+        }
+
+        $pdo = Database::connection();
+        $pdo->prepare("DELETE FROM {$table} WHERE {$ownerColumn} = :owner_id")->execute(['owner_id' => $ownerId]);
+        $statement = $pdo->prepare(
+            "INSERT INTO {$table} ({$ownerColumn}, {$assignedColumn})
+             VALUES (:owner_id, :assigned_id)"
+        );
+
+        foreach (array_unique(array_filter(array_map('intval', $assignedIds), static fn (int $id): bool => $id > 0)) as $assignedId) {
+            $statement->execute([
+                'owner_id' => $ownerId,
+                'assigned_id' => $assignedId,
+            ]);
+        }
+    }
+
+    private function isPlanAllowedForShopCategory(int $shopId, int $planId): bool
+    {
+        $statement = Database::connection()->prepare(
+            'SELECT COUNT(*)
+             FROM shops
+             INNER JOIN saas_category_plans category_plans ON category_plans.category_id = shops.category_id
+             WHERE shops.id = :shop_id
+               AND category_plans.plan_id = :plan_id'
+        );
+        $statement->execute([
+            'shop_id' => $shopId,
+            'plan_id' => $planId,
+        ]);
+
+        return (int) $statement->fetchColumn() > 0;
     }
 
     private function shopPayload(array $data): array

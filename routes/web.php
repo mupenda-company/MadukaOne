@@ -36,6 +36,8 @@ return [
     ['POST', '/saas-admin/fonctionnalites', 'SaasAdmin/SaasFeatureController@store', $saasAdmin],
     ['POST', '/saas-admin/fonctionnalites/{id}/update', 'SaasAdmin/SaasFeatureController@update', $saasAdmin],
     ['POST', '/saas-admin/fonctionnalites/{id}/toggle', 'SaasAdmin/SaasFeatureController@toggle', $saasAdmin],
+    ['POST', '/saas-admin/fonctionnalites/categories/{id}/plans', 'SaasAdmin/SaasFeatureController@syncCategoryPlans', $saasAdmin],
+    ['POST', '/saas-admin/fonctionnalites/plans/{id}', 'SaasAdmin/SaasFeatureController@syncPlan', $saasAdmin],
     ['GET', '/saas-admin/abonnements', 'SaasAdmin/SaasSubscriptionController@index', $saasAdmin],
     ['POST', '/saas-admin/abonnements/plans', 'SaasAdmin/SaasSubscriptionController@storePlan', $saasAdmin],
     ['GET', '/saas-admin/abonnements/plans/{id}', 'SaasAdmin/SaasSubscriptionController@showPlan', $saasAdmin],

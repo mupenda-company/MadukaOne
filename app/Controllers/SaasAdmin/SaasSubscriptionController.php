@@ -14,6 +14,7 @@ final class SaasSubscriptionController extends BaseSaasAdminController
             'shops' => $this->repo->shopsWithMetrics(),
             'plans' => $this->repo->plans(),
             'features' => $this->repo->features(),
+            'assignments' => $this->repo->featureAssignmentMaps(),
             'featureIdsByShop' => $this->repo->featureIdsByShop(),
         ]);
     }

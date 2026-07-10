@@ -19,7 +19,7 @@ $action = $isEdit ? $url('/saas-admin/boutiques/' . (int) $shop['id'] . '/update
             <div><label class="mb-2 block text-sm font-semibold" for="nom">Nom</label><input class="field-control" id="nom" name="nom" value="<?= $safe($shop['nom'] ?? '') ?>" required maxlength="120"></div>
             <div>
                 <label class="mb-2 block text-sm font-semibold" for="category_id">Categorie</label>
-                <select class="field-control" id="category_id" name="category_id">
+                <select class="field-control" id="category_id" name="category_id" required>
                     <?php foreach ($categories as $category): ?>
                         <?php $categoryId = (int) ($category['id'] ?? 0); ?>
                         <option value="<?= $categoryId ?>" <?= $categoryId === (int) ($shop['category_id'] ?? 0) ? 'selected' : '' ?>>
