@@ -31,9 +31,13 @@ final class Sale extends Model
             $customerId = $this->nullablePositiveInt($payload['customer_id'] ?? null);
             $paymentMethod = $this->validPaymentMethod((string) ($payload['mode_paiement'] ?? 'cash'));
             $amountReceived = max(0.0, (float) ($payload['montant_recu'] ?? 0));
+            $receivedCurrency = $this->validCurrency((string) ($payload['received_currency'] ?? 'USD'));
+            $shopCurrency = $this->shopCurrency($db, $shopId);
+            $exchangeRate = $shopCurrency['exchange_rate'];
             $invoiceNumber = $this->generateInvoiceNumber($db);
             $lines = [];
             $totalAmount = 0.0;
+            $enteredTotalsByCurrency = [];
 
             foreach ($items as $item) {
                 $product = $this->lockProductForSale($db, (int) $item['product_id'], $shopId);
@@ -46,23 +50,37 @@ final class Sale extends Model
 
                 $salePrice = (float) $product['prix_vente'];
                 $purchasePrice = (float) $product['prix_achat'];
+                $enteredCurrency = $this->validCurrency((string) ($product['prix_vente_devise'] ?? 'USD'));
+                $enteredSalePrice = (float) ($product['prix_vente_montant'] ?? $salePrice);
+                $enteredSalePrice = $enteredSalePrice > 0 ? $enteredSalePrice : $salePrice;
                 $stockAfter = $stockBefore - $quantity;
                 $lineTotal = $quantity * $salePrice;
+                $enteredLineTotal = $quantity * $enteredSalePrice;
                 $totalAmount += $lineTotal;
+                $enteredTotalsByCurrency[$enteredCurrency] = ($enteredTotalsByCurrency[$enteredCurrency] ?? 0.0) + $enteredLineTotal;
 
                 $lines[] = [
                     'product_id' => (int) $product['id'],
                     'nom' => (string) $product['nom'],
                     'quantite' => $quantity,
                     'prix_unitaire_vendu' => $salePrice,
+                    'prix_unitaire_vendu_saisi' => $enteredSalePrice,
+                    'devise_saisie' => $enteredCurrency,
+                    'taux_change_saisie' => $exchangeRate,
                     'prix_achat_unitaire' => $purchasePrice,
                     'total_ligne' => $lineTotal,
+                    'total_ligne_saisi' => $enteredLineTotal,
                     'stock_avant' => $stockBefore,
                     'stock_apres' => $stockAfter,
                 ];
             }
 
             $amountReceived = min($amountReceived, $totalAmount);
+            $saleCurrency = count($enteredTotalsByCurrency) === 1 ? (string) array_key_first($enteredTotalsByCurrency) : $shopCurrency['currency'];
+            $totalAmountEntered = count($enteredTotalsByCurrency) === 1
+                ? (float) array_values($enteredTotalsByCurrency)[0]
+                : $this->usdToCurrency($totalAmount, $saleCurrency, $exchangeRate);
+            $amountReceivedEntered = $this->usdToCurrency($amountReceived, $receivedCurrency, $exchangeRate);
             $debtAmount = $this->calculateDebt($paymentMethod, $amountReceived, $totalAmount);
 
             if ($debtAmount > 0 && $customerId === null) {
@@ -80,7 +98,12 @@ final class Sale extends Model
                 userId: $userId,
                 invoiceNumber: $invoiceNumber,
                 totalAmount: $totalAmount,
+                totalAmountEntered: $totalAmountEntered,
+                saleCurrency: $saleCurrency,
                 amountReceived: $amountReceived,
+                amountReceivedEntered: $amountReceivedEntered,
+                receivedCurrency: $receivedCurrency,
+                exchangeRate: $exchangeRate,
                 debtAmount: $debtAmount,
                 paymentMethod: $paymentMethod
             );
@@ -94,7 +117,10 @@ final class Sale extends Model
                     productId: $line['product_id'],
                     quantity: $line['quantite'],
                     salePrice: $line['prix_unitaire_vendu'],
-                    purchasePrice: $line['prix_achat_unitaire']
+                    purchasePrice: $line['prix_achat_unitaire'],
+                    enteredSalePrice: $line['prix_unitaire_vendu_saisi'],
+                    enteredCurrency: $line['devise_saisie'],
+                    exchangeRate: $line['taux_change_saisie']
                 );
 
                 $this->insertStockMovement(
@@ -122,7 +148,11 @@ final class Sale extends Model
                 'sale_id' => $saleId,
                 'numero_facture' => $invoiceNumber,
                 'total_montant' => $totalAmount,
+                'total_montant_saisi' => $totalAmountEntered,
+                'devise_saisie' => $saleCurrency,
                 'montant_recu' => $amountReceived,
+                'montant_recu_saisi' => $amountReceivedEntered,
+                'devise_recu' => $receivedCurrency,
                 'montant_dette' => $debtAmount,
                 'mode_paiement' => $paymentMethod,
                 'items' => $lines,
@@ -148,8 +178,13 @@ final class Sale extends Model
                 sales.numero_facture,
                 sales.date_vente,
                 sales.total_montant,
+                sales.total_montant_saisi,
+                sales.devise_saisie,
                 sales.montant_recu,
+                sales.montant_recu_saisi,
+                sales.devise_recu,
                 sales.montant_dette,
+                sales.taux_change_saisie,
                 sales.mode_paiement,
                 sales.statut,
                 customers.nom AS customer_name,
@@ -178,8 +213,13 @@ final class Sale extends Model
                 sales.numero_facture,
                 sales.date_vente,
                 sales.total_montant,
+                sales.total_montant_saisi,
+                sales.devise_saisie,
                 sales.montant_recu,
+                sales.montant_recu_saisi,
+                sales.devise_recu,
                 sales.montant_dette,
+                sales.taux_change_saisie,
                 sales.mode_paiement,
                 sales.statut,
                 customers.nom AS customer_name,
@@ -211,8 +251,13 @@ final class Sale extends Model
                 sales.numero_facture,
                 sales.date_vente,
                 sales.total_montant,
+                sales.total_montant_saisi,
+                sales.devise_saisie,
                 sales.montant_recu,
+                sales.montant_recu_saisi,
+                sales.devise_recu,
                 sales.montant_dette,
+                sales.taux_change_saisie,
                 sales.mode_paiement,
                 sales.statut,
                 sales.motif_annulation,
@@ -248,8 +293,12 @@ final class Sale extends Model
                 sale_details.product_id,
                 sale_details.quantite,
                 sale_details.prix_unitaire_vendu,
+                sale_details.prix_unitaire_vendu_saisi,
+                sale_details.devise_saisie,
+                sale_details.taux_change_saisie,
                 sale_details.prix_achat_unitaire,
                 sale_details.total_ligne,
+                sale_details.total_ligne_saisi,
                 products.nom AS product_name,
                 products.ref AS product_ref
              FROM sale_details
@@ -499,7 +548,7 @@ final class Sale extends Model
     private function lockProductForSale(PDO $db, int $productId, int $shopId): array
     {
         $statement = $db->prepare(
-            'SELECT id, nom, prix_achat, prix_vente, quantite_stock
+            'SELECT id, nom, prix_achat, prix_vente, prix_vente_devise, prix_vente_montant, quantite_stock
              FROM products
              WHERE id = :id AND shop_id = :shop_id AND actif = 1
              LIMIT 1
@@ -565,17 +614,27 @@ final class Sale extends Model
         int $userId,
         string $invoiceNumber,
         float $totalAmount,
+        float $totalAmountEntered,
+        string $saleCurrency,
         float $amountReceived,
+        float $amountReceivedEntered,
+        string $receivedCurrency,
+        float $exchangeRate,
         float $debtAmount,
         string $paymentMethod
     ): int {
+        $saleCurrency = $this->validCurrency($saleCurrency);
+        $receivedCurrency = $this->validCurrency($receivedCurrency);
+        $exchangeRate = $exchangeRate > 0 ? $exchangeRate : 2800.0;
         $statement = $db->prepare(
             'INSERT INTO sales (
-                shop_id, customer_id, user_id, numero_facture, total_montant,
-                montant_recu, montant_dette, mode_paiement
+                shop_id, customer_id, user_id, numero_facture, total_montant, total_montant_saisi,
+                devise_saisie, montant_recu, montant_recu_saisi, devise_recu, taux_change_saisie,
+                montant_dette, mode_paiement
              ) VALUES (
-                :shop_id, :customer_id, :user_id, :numero_facture, :total_montant,
-                :montant_recu, :montant_dette, :mode_paiement
+                :shop_id, :customer_id, :user_id, :numero_facture, :total_montant, :total_montant_saisi,
+                :devise_saisie, :montant_recu, :montant_recu_saisi, :devise_recu, :taux_change_saisie,
+                :montant_dette, :mode_paiement
              )'
         );
 
@@ -585,7 +644,12 @@ final class Sale extends Model
             'user_id' => $userId,
             'numero_facture' => $invoiceNumber,
             'total_montant' => $totalAmount,
+            'total_montant_saisi' => $totalAmountEntered,
+            'devise_saisie' => $saleCurrency,
             'montant_recu' => $amountReceived,
+            'montant_recu_saisi' => $amountReceivedEntered,
+            'devise_recu' => $receivedCurrency,
+            'taux_change_saisie' => $exchangeRate,
             'montant_dette' => $debtAmount,
             'mode_paiement' => $paymentMethod,
         ]);
@@ -729,6 +793,39 @@ final class Sale extends Model
         }
 
         return max(0.0, $totalAmount - $amountReceived);
+    }
+
+    private function validCurrency(string $currency): string
+    {
+        $currency = strtoupper(trim($currency));
+
+        return in_array($currency, ['USD', 'CDF'], true) ? $currency : 'USD';
+    }
+
+    private function usdToCurrency(float $amount, string $currency, float $exchangeRate): float
+    {
+        $currency = $this->validCurrency($currency);
+        $exchangeRate = $exchangeRate > 0 ? $exchangeRate : 2800.0;
+
+        return $currency === 'CDF' ? round($amount * $exchangeRate, 2) : round($amount, 2);
+    }
+
+    private function shopCurrency(PDO $db, int $shopId): array
+    {
+        $statement = $db->prepare(
+            'SELECT devise_principale, taux_change_cdf
+             FROM shops
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute(['id' => $shopId]);
+        $shop = $statement->fetch();
+        $exchangeRate = is_array($shop) ? (float) ($shop['taux_change_cdf'] ?? 2800) : 2800.0;
+
+        return [
+            'currency' => $this->validCurrency(is_array($shop) ? (string) ($shop['devise_principale'] ?? 'USD') : 'USD'),
+            'exchange_rate' => $exchangeRate > 0 ? $exchangeRate : 2800.0,
+        ];
     }
 
     private function salesFilterSql(int $shopId, array $filters): array

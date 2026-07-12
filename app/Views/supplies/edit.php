@@ -4,6 +4,9 @@ $supply = is_array($supply ?? null) ? $supply : [];
 $details = is_array($details ?? null) ? $details : [];
 $suppliers = is_array($suppliers ?? null) ? $suppliers : [];
 $products = is_array($products ?? null) ? $products : [];
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$supplyCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $supplyId = (int) ($supply['id'] ?? 0);
 $safe = static fn ($value, string $fallback = ''): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateValue = static function ($value): string {
@@ -45,7 +48,8 @@ $icon = static function (string $name): string {
                 </label>
                 <label class="block">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">N° arrivage</span>
-                    <input class="field-control" name="numero_arrivage" type="text" value="<?= $safe($supply['numero_arrivage'] ?? '') ?>">
+                    <input class="field-control bg-slate-50 text-slate-600" type="text" value="<?= $safe($supply['numero_arrivage'] ?? '') ?>" readonly>
+                    <span class="mt-1 block text-xs font-semibold text-slate-500">Numero unique genere automatiquement.</span>
                 </label>
                 <label class="block">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Date</span>
@@ -68,7 +72,9 @@ $icon = static function (string $name): string {
                     <thead>
                         <tr class="text-left text-xs uppercase tracking-[.14em] text-slate-400">
                             <th class="px-3 py-3">Produit</th>
+                            <th class="px-3 py-3">Stock disponible</th>
                             <th class="px-3 py-3">Quantité</th>
+                            <th class="px-3 py-3">Devise</th>
                             <th class="px-3 py-3">Prix achat</th>
                             <th class="px-3 py-3">Total ligne</th>
                             <th class="px-3 py-3"></th>
@@ -81,14 +87,17 @@ $icon = static function (string $name): string {
                                     <select class="field-control" name="product_id[]" data-supply-product>
                                         <?php foreach ($products as $product): ?>
                                             <?php $selected = (int) ($product['id'] ?? 0) === (int) ($detail['product_id'] ?? 0); ?>
-                                            <option value="<?= (int) $product['id'] ?>" data-price="<?= (float) $product['prix_achat'] ?>" <?= $selected ? 'selected' : '' ?>>
-                                                <?= $safe((string) ($product['ref'] ?? '') . ' - ' . (string) ($product['nom'] ?? '')) ?>
+                                            <?php $availableStock = (int) ($product['quantite_stock'] ?? 0); ?>
+                                            <option value="<?= (int) $product['id'] ?>" data-price-usd="<?= (float) $product['prix_achat'] ?>" data-price-cdf="<?= (float) $product['prix_achat'] * $exchangeRate ?>" data-stock="<?= $availableStock ?>" <?= $selected ? 'selected' : '' ?>>
+                                                <?= $safe((string) ($product['ref'] ?? '') . ' - ' . (string) ($product['nom'] ?? '') . ' | Stock: ' . $availableStock) ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </td>
+                                <td class="px-3 py-3"><span class="inline-flex min-w-24 justify-center rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700" data-supply-stock>0</span></td>
                                 <td class="px-3 py-3"><input class="field-control min-w-24" name="quantite[]" type="number" min="1" step="1" value="<?= (int) ($detail['quantite'] ?? 1) ?>" data-supply-qty></td>
-                                <td class="px-3 py-3"><input class="field-control min-w-28" name="prix_achat_facture[]" type="number" min="0" step="0.01" value="<?= number_format((float) ($detail['prix_achat_facture'] ?? 0), 2, '.', '') ?>" data-supply-price></td>
+                                <td class="px-3 py-3"><select class="field-control min-w-24" name="devise_saisie[]" data-supply-currency><option value="USD" <?= ($detail['devise_saisie'] ?? 'USD') === 'USD' ? 'selected' : '' ?>>USD</option><option value="CDF" <?= ($detail['devise_saisie'] ?? 'USD') === 'CDF' ? 'selected' : '' ?>>CDF</option></select></td>
+                                <td class="px-3 py-3"><input class="field-control min-w-28" name="prix_achat_facture[]" type="number" min="0" step="0.01" value="<?= number_format((float) ($detail['prix_achat_saisi'] ?? $detail['prix_achat_facture'] ?? 0), 2, '.', '') ?>" data-supply-price></td>
                                 <td class="px-3 py-3 font-bold text-slate-950" data-supply-line-total>0,00 USD</td>
                                 <td class="px-3 py-3 text-right"><button class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" type="button" data-supply-remove>Retirer</button></td>
                             </tr>
@@ -110,13 +119,16 @@ $icon = static function (string $name): string {
         <td class="px-3 py-3">
             <select class="field-control" name="product_id[]" data-supply-product>
                 <?php foreach ($products as $product): ?>
-                    <option value="<?= (int) $product['id'] ?>" data-price="<?= (float) $product['prix_achat'] ?>">
-                        <?= $safe((string) ($product['ref'] ?? '') . ' - ' . (string) ($product['nom'] ?? '')) ?>
+                    <?php $availableStock = (int) ($product['quantite_stock'] ?? 0); ?>
+                    <option value="<?= (int) $product['id'] ?>" data-price-usd="<?= (float) $product['prix_achat'] ?>" data-price-cdf="<?= (float) $product['prix_achat'] * $exchangeRate ?>" data-stock="<?= $availableStock ?>">
+                        <?= $safe((string) ($product['ref'] ?? '') . ' - ' . (string) ($product['nom'] ?? '') . ' | Stock: ' . $availableStock) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
         </td>
+        <td class="px-3 py-3"><span class="inline-flex min-w-24 justify-center rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700" data-supply-stock>0</span></td>
         <td class="px-3 py-3"><input class="field-control min-w-24" name="quantite[]" type="number" min="1" step="1" value="1" data-supply-qty></td>
+        <td class="px-3 py-3"><select class="field-control min-w-24" name="devise_saisie[]" data-supply-currency><option value="USD" <?= $supplyCurrency === 'USD' ? 'selected' : '' ?>>USD</option><option value="CDF" <?= $supplyCurrency === 'CDF' ? 'selected' : '' ?>>CDF</option></select></td>
         <td class="px-3 py-3"><input class="field-control min-w-28" name="prix_achat_facture[]" type="number" min="0" step="0.01" value="0.00" data-supply-price></td>
         <td class="px-3 py-3 font-bold text-slate-950" data-supply-line-total>0,00 USD</td>
         <td class="px-3 py-3 text-right"><button class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" type="button" data-supply-remove>Retirer</button></td>
@@ -128,18 +140,47 @@ $icon = static function (string $name): string {
         const lines = document.querySelector('[data-supply-lines]');
         const template = document.querySelector('[data-supply-row-template]');
         const totalTarget = document.querySelector('[data-supply-total]');
-        const money = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD' });
+        const exchangeRate = Number(<?= json_encode($exchangeRate) ?>);
+        const moneyUsd = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD' });
+        const moneyCdf = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'CDF' });
+        const selectedCurrency = (row) => row.querySelector('[data-supply-currency]')?.value === 'CDF' ? 'CDF' : 'USD';
+        const integerFormat = new Intl.NumberFormat('fr-FR');
+        const updateRowStock = (row) => {
+            const product = row.querySelector('[data-supply-product]');
+            const stockTarget = row.querySelector('[data-supply-stock]');
+            const stock = Number(product?.selectedOptions[0]?.dataset.stock || 0);
+
+            if (!stockTarget) {
+                return;
+            }
+
+            stockTarget.textContent = integerFormat.format(stock);
+            stockTarget.classList.toggle('bg-red-50', stock <= 0);
+            stockTarget.classList.toggle('text-red-700', stock <= 0);
+            stockTarget.classList.toggle('bg-amber-50', stock > 0 && stock <= 5);
+            stockTarget.classList.toggle('text-amber-700', stock > 0 && stock <= 5);
+            stockTarget.classList.toggle('bg-slate-100', stock > 5);
+            stockTarget.classList.toggle('text-slate-700', stock > 5);
+        };
+        const formatPair = (amount, currency) => {
+            if (currency === 'CDF') {
+                return `${moneyCdf.format(amount)} (${moneyUsd.format(amount / Math.max(exchangeRate, 0.0001))})`;
+            }
+
+            return `${moneyUsd.format(amount)} (${moneyCdf.format(amount * exchangeRate)})`;
+        };
 
         const recalc = () => {
             let total = 0;
             lines?.querySelectorAll('tr').forEach((row) => {
                 const qty = Number(row.querySelector('[data-supply-qty]')?.value || 0);
                 const price = Number(row.querySelector('[data-supply-price]')?.value || 0);
+                const currency = selectedCurrency(row);
                 const lineTotal = qty * price;
-                total += lineTotal;
-                row.querySelector('[data-supply-line-total]').textContent = money.format(lineTotal);
+                total += currency === 'CDF' ? lineTotal / Math.max(exchangeRate, 0.0001) : lineTotal;
+                row.querySelector('[data-supply-line-total]').textContent = formatPair(lineTotal, currency);
             });
-            if (totalTarget) totalTarget.textContent = money.format(total);
+            if (totalTarget) totalTarget.textContent = formatPair(total, 'USD');
         };
 
         const addLine = () => {
@@ -147,17 +188,22 @@ $icon = static function (string $name): string {
             const row = fragment.querySelector('tr');
             const product = row.querySelector('[data-supply-product]');
             const price = row.querySelector('[data-supply-price]');
-            price.value = Number(product.selectedOptions[0]?.dataset.price || 0).toFixed(2);
+            const currency = selectedCurrency(row);
+            price.value = Number(product.selectedOptions[0]?.dataset[currency === 'CDF' ? 'priceCdf' : 'priceUsd'] || 0).toFixed(2);
             lines.appendChild(fragment);
+            updateRowStock(row);
             recalc();
         };
 
         document.querySelectorAll('[data-supply-add-line]').forEach((button) => button.addEventListener('click', addLine));
         lines?.addEventListener('input', recalc);
         lines?.addEventListener('change', (event) => {
-            if (event.target.matches('[data-supply-product]')) {
+            if (event.target.matches('[data-supply-product], [data-supply-currency]')) {
                 const row = event.target.closest('tr');
-                row.querySelector('[data-supply-price]').value = Number(event.target.selectedOptions[0]?.dataset.price || 0).toFixed(2);
+                const product = row.querySelector('[data-supply-product]');
+                const currency = selectedCurrency(row);
+                row.querySelector('[data-supply-price]').value = Number(product.selectedOptions[0]?.dataset[currency === 'CDF' ? 'priceCdf' : 'priceUsd'] || 0).toFixed(2);
+                updateRowStock(row);
             }
             recalc();
         });
@@ -167,6 +213,7 @@ $icon = static function (string $name): string {
                 recalc();
             }
         });
+        lines?.querySelectorAll('tr').forEach(updateRowStock);
         recalc();
     })();
 </script>

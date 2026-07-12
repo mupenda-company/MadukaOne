@@ -152,8 +152,12 @@ return [
     ['GET', '/expenses/create', 'ExpenseController@create', $protected],
     ['POST', '/expenses', 'ExpenseController@store', $protected],
     ['GET', '/expenses/{id}', 'ExpenseController@show', $protected],
+    ['POST', '/expenses/{id}/update', 'ExpenseController@update', $protected],
+    ['POST', '/expenses/{id}/cancel', 'ExpenseController@cancel', $protected],
     ['GET', '/finances', 'ExpenseController@index', $protected],
     ['POST', '/finances', 'ExpenseController@store', $protected],
+    ['POST', '/finances/{id}/update', 'ExpenseController@update', $protected],
+    ['POST', '/finances/{id}/cancel', 'ExpenseController@cancel', $protected],
 
     ['GET', '/reports/financials', 'ReportController@financials', $protected],
     ['GET', '/reports/sales', 'ReportController@sales', $protected],

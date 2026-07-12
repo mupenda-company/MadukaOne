@@ -24,6 +24,32 @@
   const inputAmountToUsd = (amount) => amountToUsd(amount, receivedCurrencySelect?.value || posCurrency);
   const formatMoney = (usdAmount) => money.format(displayAmount(Number(usdAmount || 0)));
   const formatCurrency = (amount, currency) => (currencyFormatters[currency] || currencyFormatters.USD).format(Number(amount || 0));
+  const formatEnteredAmount = (amount, currency) => {
+    const value = Number(amount || 0);
+
+    if (currency === 'CDF') {
+      return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(value)} CDF`;
+    }
+
+    return formatCurrency(value, 'USD');
+  };
+  const formatEnteredPair = (amount, currency, usdAmount) => {
+    const enteredCurrency = ['USD', 'CDF'].includes(currency) ? currency : 'USD';
+    const enteredAmount = Number(amount || 0);
+    const usd = Number(usdAmount || 0);
+
+    if (enteredCurrency === 'CDF') {
+      return {
+        primary: formatEnteredAmount(enteredAmount, 'CDF'),
+        secondary: formatCurrency(usd, 'USD'),
+      };
+    }
+
+    return {
+      primary: formatCurrency(enteredAmount, 'USD'),
+      secondary: formatEnteredAmount(enteredAmount * exchangeRate, 'CDF'),
+    };
+  };
   const formatMoneyDual = (usdAmount) => {
     const amount = Number(usdAmount || 0);
     const primaryCurrency = posCurrency;
@@ -38,6 +64,27 @@
     const currency = forcedCurrency || receivedCurrencySelect?.value || posCurrency;
 
     return formatCurrency(usdToAmount(Number(usdAmount || 0), currency), currency);
+  };
+  const formatCartUnit = (item) => formatEnteredPair(item.priceEntered, item.priceCurrency, item.price);
+  const formatCartLine = (item) => formatEnteredPair(Number(item.priceEntered || 0) * item.quantity, item.priceCurrency, item.price * item.quantity);
+  const formatCartTotal = () => {
+    const items = [...cart.values()];
+    const currencies = new Set(items.map((item) => item.priceCurrency));
+
+    if (items.length > 0 && currencies.size === 1) {
+      const currency = items[0].priceCurrency;
+      const enteredTotal = items.reduce((sum, item) => sum + Number(item.priceEntered || 0) * item.quantity, 0);
+
+      return formatEnteredPair(enteredTotal, currency, total());
+    }
+
+    return formatMoneyDual(total());
+  };
+  const formatSaleTotal = (sale) => {
+    const entered = Number(sale.total_montant_saisi || 0);
+    const currency = ['USD', 'CDF'].includes(sale.devise_saisie) ? sale.devise_saisie : 'USD';
+
+    return entered > 0 ? formatEnteredPair(entered, currency, Number(sale.total_montant || 0)) : formatMoneyDual(Number(sale.total_montant || 0));
   };
   const products = [...root.querySelectorAll('[data-pos-product]')];
   const cartTarget = root.querySelector('[data-pos-cart]');
@@ -84,7 +131,7 @@
     cash: 'Cash',
     mobile_money: 'Mobile money',
     carte: 'Carte',
-    credit: 'Crédit',
+    credit: 'CrÃƒÂ©dit',
   }[value] || 'Cash');
 
   const formatDate = (value) => {
@@ -118,7 +165,7 @@
   };
 
   const customerLabel = (customer) => {
-    const phone = customer.telephone ? ` · ${customer.telephone}` : '';
+    const phone = customer.telephone ? ` Ã‚Â· ${customer.telephone}` : '';
     return `${customer.nom || 'Client'}${phone}`;
   };
 
@@ -254,14 +301,14 @@
       const data = await response.json();
 
       if (!response.ok || !data.ok || !data.customer) {
-        throw new Error(data.message || 'Impossible d’ajouter ce client.');
+        throw new Error(data.message || 'Impossible dÃ¢â‚¬â„¢ajouter ce client.');
       }
 
       customers = Array.isArray(data.customers) ? data.customers : [...customers, data.customer];
       selectCustomer(data.customer);
-      showMessage(data.message || 'Client ajouté avec succès.', 'success');
+      showMessage(data.message || 'Client ajoutÃƒÂ© avec succÃƒÂ¨s.', 'success');
     } catch (error) {
-      showMessage(error.message || 'Erreur pendant la création du client.');
+      showMessage(error.message || 'Erreur pendant la crÃƒÂ©ation du client.');
     } finally {
       customerSaveButton.disabled = false;
       customerSaveButton.textContent = 'Enregistrer';
@@ -327,7 +374,8 @@
         name.className = 'px-3 py-3';
         name.innerHTML = '<p class="font-bold text-slate-950"></p><p class="mt-1 text-xs text-slate-500"></p>';
         name.querySelector('p').textContent = item.name;
-        name.querySelectorAll('p')[1].textContent = `${item.ref || '-'} · ${formatMoney(item.price)}`;
+        const unit = formatCartUnit(item);
+        name.querySelectorAll('p')[1].textContent = `${item.ref || '-'} - ${unit.primary} (${unit.secondary})`;
 
         const quantity = document.createElement('td');
         quantity.className = 'px-3 py-3 text-right font-semibold';
@@ -335,21 +383,25 @@
 
         const lineTotal = document.createElement('td');
         lineTotal.className = 'px-3 py-3 text-right font-bold text-slate-950';
-        lineTotal.textContent = formatMoney(item.price * item.quantity);
+        const lineTotalAmounts = formatCartLine(item);
+        lineTotal.textContent = `${lineTotalAmounts.primary} (${lineTotalAmounts.secondary})`;
 
         row.append(name, quantity, lineTotal);
         confirmItems.appendChild(row);
       });
     }
 
-    if (confirmTotal) confirmTotal.textContent = formatMoney(saleTotal);
+    if (confirmTotal) {
+      const cartTotal = formatCartTotal();
+      confirmTotal.textContent = `${cartTotal.primary} (${cartTotal.secondary})`;
+    }
     if (confirmReceived) {
       confirmReceived.textContent = receivedCurrency === posCurrency
         ? formatCurrency(enteredReceived, receivedCurrency)
         : `${formatCurrency(enteredReceived, receivedCurrency)} (${formatMoney(received)})`;
     }
     if (confirmChange) {
-      const diffLabel = diff >= 0 ? 'Monnaie à rendre' : 'Reste à payer';
+      const diffLabel = diff >= 0 ? 'Monnaie ÃƒÂ  rendre' : 'Reste ÃƒÂ  payer';
       confirmChange.textContent = `${diffLabel}: ${formatReceivedCurrency(Math.abs(diff), receivedCurrency)}`;
       confirmChange.classList.toggle('text-red-700', diff < 0);
       confirmChange.classList.toggle('text-teal-700', diff >= 0);
@@ -401,7 +453,7 @@
       if (customerSearch) customerSearch.value = '';
       render();
       renderLatestSales(data.latestSales);
-      showMessage(data.message || 'Vente validée.', 'success');
+      showMessage(data.message || 'Vente validÃƒÂ©e.', 'success');
     } catch (error) {
       closeSaleConfirmation();
       showMessage(error.message || 'Erreur de communication avec le serveur.');
@@ -422,7 +474,7 @@
       const empty = document.createElement('div');
       empty.className = 'rounded-lg border border-dashed border-slate-200 p-4 text-center text-sm text-slate-500';
       empty.dataset.posLatestEmpty = '';
-      empty.textContent = 'Aucune vente validée pour le moment.';
+      empty.textContent = 'Aucune vente validÃƒÂ©e pour le moment.';
       latestSalesTarget.appendChild(empty);
       return;
     }
@@ -444,11 +496,11 @@
 
       const meta = document.createElement('p');
       meta.className = 'mt-1 truncate text-xs text-slate-500';
-      meta.textContent = `${sale.customer_name || 'Client comptant'} · ${formatDate(sale.date_vente)}`;
+      meta.textContent = `${sale.customer_name || 'Client comptant'} Ã‚Â· ${formatDate(sale.date_vente)}`;
 
       const badge = document.createElement('span');
       badge.className = 'shrink-0 rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-teal-700';
-      badge.textContent = 'Validée';
+      badge.textContent = 'ValidÃƒÂ©e';
 
       info.append(invoice, meta);
       header.append(info, badge);
@@ -461,7 +513,12 @@
 
       const amount = document.createElement('strong');
       amount.className = 'text-sm text-slate-950';
-      amount.textContent = formatMoney(Number(sale.total_montant || 0));
+      const saleTotal = formatSaleTotal(sale);
+      amount.textContent = saleTotal.primary;
+      const secondary = document.createElement('span');
+      secondary.className = 'block text-xs font-semibold text-slate-500';
+      secondary.textContent = saleTotal.secondary;
+      amount.appendChild(secondary);
 
       footer.append(count, amount);
       row.append(header, footer);
@@ -476,7 +533,7 @@
     const diff = received - total();
 
     if (changeTarget) {
-      const label = diff >= 0 ? 'Monnaie à rendre' : 'Reste à payer';
+      const label = diff >= 0 ? 'Monnaie ÃƒÂ  rendre' : 'Reste ÃƒÂ  payer';
       const equivalent = receivedCurrency === posCurrency ? '' : ` (${formatMoney(Math.abs(diff))})`;
       changeTarget.textContent = `${label}: ${formatCurrency(usdToAmount(Math.abs(diff), receivedCurrency), receivedCurrency)}${equivalent}`;
       changeTarget.classList.toggle('text-red-700', diff < 0);
@@ -512,14 +569,16 @@
         </div>
       `;
       row.querySelector('p').textContent = item.name;
-      row.querySelectorAll('p')[1].textContent = `${item.ref} · ${formatMoney(item.price)}`;
+      const unit = formatCartUnit(item);
+      row.querySelectorAll('p')[1].textContent = `${item.ref} - ${unit.primary} (${unit.secondary})`;
       row.querySelector('[data-pos-qty]').textContent = item.quantity;
-      row.querySelector('[data-pos-line-total]').textContent = formatMoney(item.price * item.quantity);
+      const lineTotal = formatCartLine(item);
+      row.querySelector('[data-pos-line-total]').textContent = `${lineTotal.primary} (${lineTotal.secondary})`;
       cartTarget.appendChild(row);
     });
 
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    const totalAmounts = formatMoneyDual(total());
+    const totalAmounts = formatCartTotal();
     totalTarget.textContent = totalAmounts.primary;
     if (totalSecondaryTarget) {
       totalSecondaryTarget.textContent = totalAmounts.secondary;
@@ -546,6 +605,8 @@
       name: button.dataset.name || 'Produit',
       ref: button.dataset.ref || '',
       price: Number(button.dataset.price || 0),
+      priceEntered: Number(button.dataset.priceEntered || button.dataset.price || 0),
+      priceCurrency: ['USD', 'CDF'].includes(button.dataset.priceCurrency) ? button.dataset.priceCurrency : 'USD',
       stock,
       quantity: nextQuantity,
     });
@@ -670,7 +731,7 @@
     const payload = buildSalePayload();
 
     if ((payload.payment_method === 'credit' || Number(payload.amount_received || 0) < total()) && !selectedCustomer) {
-      showMessage('Sélectionnez ou ajoutez un client pour une vente à crédit.');
+      showMessage('SÃƒÂ©lectionnez ou ajoutez un client pour une vente ÃƒÂ  crÃƒÂ©dit.');
       customerSearch?.focus();
       renderCustomerResults();
       return;
@@ -692,7 +753,7 @@
     const enteredReceived = Number(receivedInput?.value || 0);
 
     if ((paymentMethod === 'credit' || amountToUsd(enteredReceived, receivedCurrency) < total()) && !selectedCustomer) {
-      showMessage('Sélectionnez ou ajoutez un client pour une vente à crédit.');
+      showMessage('SÃƒÂ©lectionnez ou ajoutez un client pour une vente ÃƒÂ  crÃƒÂ©dit.');
       customerSearch?.focus();
       renderCustomerResults();
       return;
@@ -736,7 +797,7 @@
       if (customerSearch) customerSearch.value = '';
       render();
       renderLatestSales(data.latestSales);
-      showMessage(data.message || 'Vente validée.', 'success');
+      showMessage(data.message || 'Vente validÃƒÂ©e.', 'success');
     } catch (error) {
       showMessage(error.message || 'Erreur de communication avec le serveur.');
     } finally {

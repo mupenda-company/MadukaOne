@@ -105,7 +105,7 @@ class DashboardController extends AppController
         $todaySales->execute(['shop_id' => $shopId]);
         $todaySummary = $todaySales->fetch() ?: ['tickets' => 0, 'revenue' => 0];
 
-        $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id');
+        $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id AND statut = "active"');
         $expenses->execute(['shop_id' => $shopId]);
         $expenseTotal = (float) $expenses->fetchColumn();
 
@@ -198,7 +198,7 @@ class DashboardController extends AppController
         $expenses = Database::connection()->prepare(
             "SELECT DATE_FORMAT(date_depense, '%Y-%m-01') AS period_key, COALESCE(SUM(montant), 0) AS expenses
              FROM expenses
-             WHERE shop_id = :shop_id AND date_depense >= :date_start
+             WHERE shop_id = :shop_id AND statut = 'active' AND date_depense >= :date_start
              GROUP BY period_key"
         );
         $expenses->execute([

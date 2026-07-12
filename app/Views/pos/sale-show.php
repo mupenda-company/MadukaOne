@@ -3,6 +3,22 @@
 $sale = is_array($sale ?? null) ? $sale : [];
 $saleDetails = is_array($saleDetails ?? null) ? $saleDetails : [];
 $money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$moneyExact = static function ($usd, $entered = null, $currency = null): string {
+    $currency = in_array(($currency ?? 'USD'), ['USD', 'CDF'], true) ? (string) $currency : 'USD';
+    $enteredAmount = (float) ($entered ?? 0);
+    $usdAmount = (float) $usd;
+
+    if ($enteredAmount <= 0) {
+        return number_format($usdAmount, 2, ',', ' ') . ' USD';
+    }
+
+    $primary = $currency === 'CDF'
+        ? number_format($enteredAmount, 0, ',', ' ') . ' CDF'
+        : number_format($enteredAmount, 2, ',', ' ') . ' USD';
+    $secondary = $currency === 'CDF' ? number_format($usdAmount, 2, ',', ' ') . ' USD' : '';
+
+    return $secondary !== '' ? $primary . '<span class="mt-1 block text-xs font-semibold text-slate-500">' . $secondary . '</span>' : $primary;
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateLabel = static function ($value): string {
     $timestamp = strtotime((string) ($value ?? ''));
@@ -36,11 +52,11 @@ $status = (string) ($sale['statut'] ?? 'validee');
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article class="stat-card">
             <p class="text-sm text-slate-500">Total</p>
-            <p class="mt-2 text-2xl font-bold text-slate-950"><?= $money($sale['total_montant'] ?? 0) ?></p>
+            <p class="mt-2 text-2xl font-bold text-slate-950"><?= $moneyExact($sale['total_montant'] ?? 0, $sale['total_montant_saisi'] ?? null, $sale['devise_saisie'] ?? null) ?></p>
         </article>
         <article class="stat-card">
             <p class="text-sm text-slate-500">Montant reçu</p>
-            <p class="mt-2 text-2xl font-bold text-teal-700"><?= $money($sale['montant_recu'] ?? 0) ?></p>
+            <p class="mt-2 text-2xl font-bold text-teal-700"><?= $moneyExact($sale['montant_recu'] ?? 0, $sale['montant_recu_saisi'] ?? null, $sale['devise_recu'] ?? null) ?></p>
         </article>
         <article class="stat-card">
             <p class="text-sm text-slate-500">Crédit</p>
@@ -78,8 +94,8 @@ $status = (string) ($sale['statut'] ?? 'validee');
                                     <p class="mt-1 text-xs text-slate-500"><?= $safe($detail['product_ref'] ?? '') ?></p>
                                 </td>
                                 <td class="px-4 py-4 font-semibold" data-label="Quantité"><?= (int) ($detail['quantite'] ?? 0) ?></td>
-                                <td class="px-4 py-4" data-label="Prix"><?= $money($detail['prix_unitaire_vendu'] ?? 0) ?></td>
-                                <td class="px-4 py-4 font-bold" data-label="Total"><?= $money($detail['total_ligne'] ?? 0) ?></td>
+                                <td class="px-4 py-4" data-label="Prix"><?= $moneyExact($detail['prix_unitaire_vendu'] ?? 0, $detail['prix_unitaire_vendu_saisi'] ?? null, $detail['devise_saisie'] ?? null) ?></td>
+                                <td class="px-4 py-4 font-bold" data-label="Total"><?= $moneyExact($detail['total_ligne'] ?? 0, $detail['total_ligne_saisi'] ?? null, $detail['devise_saisie'] ?? null) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

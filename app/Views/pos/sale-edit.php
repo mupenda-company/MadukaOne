@@ -4,6 +4,22 @@ $sale = is_array($sale ?? null) ? $sale : [];
 $saleDetails = is_array($saleDetails ?? null) ? $saleDetails : [];
 $customers = is_array($customers ?? null) ? $customers : [];
 $money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$moneyExact = static function ($usd, $entered = null, $currency = null): string {
+    $currency = in_array(($currency ?? 'USD'), ['USD', 'CDF'], true) ? (string) $currency : 'USD';
+    $enteredAmount = (float) ($entered ?? 0);
+    $usdAmount = (float) $usd;
+
+    if ($enteredAmount <= 0) {
+        return number_format($usdAmount, 2, ',', ' ') . ' USD';
+    }
+
+    $primary = $currency === 'CDF'
+        ? number_format($enteredAmount, 0, ',', ' ') . ' CDF'
+        : number_format($enteredAmount, 2, ',', ' ') . ' USD';
+    $secondary = $currency === 'CDF' ? number_format($usdAmount, 2, ',', ' ') . ' USD' : '';
+
+    return $secondary !== '' ? $primary . '<span class="block text-xs font-semibold text-slate-500">' . $secondary . '</span>' : $primary;
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $selected = static fn ($current, $expected): string => (string) $current === (string) $expected ? 'selected' : '';
 $saleId = (int) ($sale['id'] ?? 0);
@@ -74,11 +90,11 @@ $isCancelled = (string) ($sale['statut'] ?? '') === 'annulee';
                 <div class="grid gap-3 sm:grid-cols-3">
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Total</p>
-                        <p class="mt-1 text-lg font-bold text-slate-950"><?= $money($sale['total_montant'] ?? 0) ?></p>
+                        <p class="mt-1 text-lg font-bold text-slate-950"><?= $moneyExact($sale['total_montant'] ?? 0, $sale['total_montant_saisi'] ?? null, $sale['devise_saisie'] ?? null) ?></p>
                     </div>
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Reçu actuel</p>
-                        <p class="mt-1 text-lg font-bold text-teal-700"><?= $money($sale['montant_recu'] ?? 0) ?></p>
+                        <p class="mt-1 text-lg font-bold text-teal-700"><?= $moneyExact($sale['montant_recu'] ?? 0, $sale['montant_recu_saisi'] ?? null, $sale['devise_recu'] ?? null) ?></p>
                     </div>
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Crédit actuel</p>
@@ -99,8 +115,8 @@ $isCancelled = (string) ($sale['statut'] ?? '') === 'annulee';
                     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
                         <p class="text-sm font-bold text-slate-950"><?= $safe($detail['product_name'] ?? 'Produit') ?></p>
                         <div class="mt-2 flex justify-between gap-3 text-sm text-slate-600">
-                            <span><?= (int) ($detail['quantite'] ?? 0) ?> x <?= $money($detail['prix_unitaire_vendu'] ?? 0) ?></span>
-                            <strong><?= $money($detail['total_ligne'] ?? 0) ?></strong>
+                            <span><?= (int) ($detail['quantite'] ?? 0) ?> x <?= $moneyExact($detail['prix_unitaire_vendu'] ?? 0, $detail['prix_unitaire_vendu_saisi'] ?? null, $detail['devise_saisie'] ?? null) ?></span>
+                            <strong><?= $moneyExact($detail['total_ligne'] ?? 0, $detail['total_ligne_saisi'] ?? null, $detail['devise_saisie'] ?? null) ?></strong>
                         </div>
                     </div>
                 <?php endforeach; ?>

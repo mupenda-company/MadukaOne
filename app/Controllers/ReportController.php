@@ -565,7 +565,7 @@ class ReportController extends AppController
         $statement->execute(['shop_id' => $shopId]);
         $sales = $statement->fetch() ?: ['revenue' => 0, 'cost' => 0];
 
-        $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id');
+        $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id AND statut = "active"');
         $expenses->execute(['shop_id' => $shopId]);
         $expenseTotal = (float) $expenses->fetchColumn();
         $grossMargin = (float) $sales['revenue'] - (float) $sales['cost'];

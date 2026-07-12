@@ -21,7 +21,7 @@ class PosController extends AppController
     {
         $shopId = $this->currentShopId();
         $statement = Database::connection()->prepare(
-            'SELECT id, nom, ref, prix_vente, quantite_stock, alerte_stock_min, date_expiration
+            'SELECT id, nom, ref, prix_vente, prix_vente_devise, prix_vente_montant, quantite_stock, alerte_stock_min, date_expiration
              FROM products
              WHERE shop_id = :shop_id AND actif = 1
              ORDER BY nom ASC'

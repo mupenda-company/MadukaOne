@@ -24,6 +24,52 @@ $moneyDual = static function ($value) use ($posCurrency, $exchangeRate): array {
         ? ['primary' => $cdf, 'secondary' => $usd]
         : ['primary' => $usd, 'secondary' => $cdf];
 };
+$productMoney = static function (array $product) use ($exchangeRate): array {
+    $usd = (float) ($product['prix_vente'] ?? 0);
+    $currency = in_array(($product['prix_vente_devise'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product['prix_vente_devise'] : 'USD';
+    $amount = (float) ($product['prix_vente_montant'] ?? $usd);
+    $amount = $amount > 0 ? $amount : $usd;
+    $format = static function (float $value, string $moneyCurrency): string {
+        $decimals = $moneyCurrency === 'CDF' ? 0 : 2;
+
+        return number_format($value, $decimals, ',', ' ') . ' ' . $moneyCurrency;
+    };
+
+    if ($currency === 'CDF') {
+        return [
+            'primary' => $format($amount, 'CDF'),
+            'secondary' => $format($usd, 'USD'),
+            'amount' => $amount,
+            'currency' => 'CDF',
+        ];
+    }
+
+    return [
+        'primary' => $format($amount, 'USD'),
+        'secondary' => $format($amount * $exchangeRate, 'CDF'),
+        'amount' => $amount,
+        'currency' => 'USD',
+    ];
+};
+$saleMoney = static function (array $sale) use ($moneyDual, $exchangeRate): array {
+    $currency = in_array(($sale['devise_saisie'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $sale['devise_saisie'] : 'USD';
+    $entered = (float) ($sale['total_montant_saisi'] ?? 0);
+    $usd = (float) ($sale['total_montant'] ?? 0);
+
+    if ($entered > 0) {
+        return $currency === 'CDF'
+            ? [
+                'primary' => number_format($entered, 0, ',', ' ') . ' CDF',
+                'secondary' => number_format($usd, 2, ',', ' ') . ' USD',
+            ]
+            : [
+                'primary' => number_format($entered, 2, ',', ' ') . ' USD',
+                'secondary' => number_format($entered * $exchangeRate, 0, ',', ' ') . ' CDF',
+            ];
+    }
+
+    return $moneyDual($sale['total_montant'] ?? 0);
+};
 $zeroTotal = $moneyDual(0);
 $exchangeRateLabel = '1 USD = ' . number_format($exchangeRate, 2, ',', ' ') . ' CDF';
 $today = new DateTimeImmutable('today');
@@ -93,7 +139,7 @@ $dateLabel = static fn (DateTimeImmutable $date): string => $date->format('d/m/Y
                     $isLowStock = !$isOutOfStock && $minStock > 0 && $stock <= $minStock;
                     $isExpired = $expiresAt instanceof DateTimeImmutable && $expiresAt < $today;
                     $isNearExpiration = !$isExpired && $expiresAt instanceof DateTimeImmutable && $expiresAt <= $expirationLimit;
-                    $price = $moneyDual($product['prix_vente'] ?? 0);
+                    $price = $productMoney($product);
                     ?>
                     <button
                         class="flex h-full min-h-[9.5rem] flex-col rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"
@@ -103,6 +149,8 @@ $dateLabel = static fn (DateTimeImmutable $date): string => $date->format('d/m/Y
                         data-name="<?= htmlspecialchars((string) $product['nom'], ENT_QUOTES, 'UTF-8') ?>"
                         data-ref="<?= htmlspecialchars((string) $product['ref'], ENT_QUOTES, 'UTF-8') ?>"
                         data-price="<?= (float) $product['prix_vente'] ?>"
+                        data-price-entered="<?= htmlspecialchars((string) $price['amount'], ENT_QUOTES, 'UTF-8') ?>"
+                        data-price-currency="<?= htmlspecialchars((string) $price['currency'], ENT_QUOTES, 'UTF-8') ?>"
                         data-stock="<?= $stock ?>"
                         data-alert-stock-min="<?= $minStock ?>"
                         data-expiration-date="<?= htmlspecialchars((string) ($product['date_expiration'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
@@ -239,7 +287,11 @@ $dateLabel = static fn (DateTimeImmutable $date): string => $date->format('d/m/Y
                             </div>
                             <div class="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
                                 <span><?= (int) ($sale['articles_count'] ?? 0) ?> article(s)</span>
-                                <strong class="text-sm text-slate-950"><?= $money($sale['total_montant'] ?? 0) ?></strong>
+                                <?php $salePrice = $saleMoney($sale); ?>
+                                <strong class="text-sm text-slate-950">
+                                    <?= htmlspecialchars($salePrice['primary'], ENT_QUOTES, 'UTF-8') ?>
+                                    <span class="block text-xs font-semibold text-slate-500"><?= htmlspecialchars($salePrice['secondary'], ENT_QUOTES, 'UTF-8') ?></span>
+                                </strong>
                             </div>
                         </div>
                     <?php endforeach; ?>
