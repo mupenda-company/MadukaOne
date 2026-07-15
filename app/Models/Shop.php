@@ -100,6 +100,76 @@ final class Shop extends Model
         return $statement->rowCount() > 0;
     }
 
+    public function activeCategories(): array
+    {
+        $statement = Database::connection()->query(
+            'SELECT id, nom FROM shop_categories WHERE actif = 1 ORDER BY nom ASC'
+        );
+
+        return $statement->fetchAll();
+    }
+
+    public function createForOwner(array $data, int $ownerUserId, int $sourceShopId): int
+    {
+        return Database::getInstance()->transaction(function (PDO $pdo) use ($data, $ownerUserId, $sourceShopId): int {
+            $pdo->prepare(
+                'UPDATE shops SET owner_user_id = :owner_user_id WHERE id = :shop_id AND owner_user_id IS NULL'
+            )->execute(['owner_user_id' => $ownerUserId, 'shop_id' => $sourceShopId]);
+
+            $slug = $this->uniqueSlug($pdo, (string) ($data['nom'] ?? 'boutique'));
+            $statement = $pdo->prepare(
+                'INSERT INTO shops (
+                    category_id, owner_user_id, nom, slug, adresse, telephone, email,
+                    devise_principale, taux_change_cdf, actif
+                 ) VALUES (
+                    :category_id, :owner_user_id, :nom, :slug, :adresse, :telephone, :email,
+                    :devise_principale, :taux_change_cdf, 1
+                 )'
+            );
+            $statement->execute([
+                'category_id' => (int) ($data['category_id'] ?? 0) ?: null,
+                'owner_user_id' => $ownerUserId,
+                'nom' => trim((string) ($data['nom'] ?? '')),
+                'slug' => $slug,
+                'adresse' => $this->nullableString($data['adresse'] ?? null),
+                'telephone' => $this->nullableString($data['telephone'] ?? null),
+                'email' => $this->nullableString($data['email'] ?? null),
+                'devise_principale' => in_array(($data['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? $data['devise_principale'] : 'USD',
+                'taux_change_cdf' => max(0.01, (float) ($data['taux_change_cdf'] ?? 2800)),
+            ]);
+            $shopId = (int) $pdo->lastInsertId();
+
+            $copySubscription = $pdo->prepare(
+                'INSERT INTO saas_subscriptions (
+                    shop_id, plan_id, statut, date_debut, date_fin, renouvellement_auto, notes
+                 )
+                 SELECT :new_shop_id, plan_id, statut, date_debut, date_fin, renouvellement_auto,
+                        CONCAT("Plan partage depuis la boutique #", shop_id)
+                 FROM saas_subscriptions
+                 WHERE shop_id = :source_shop_id
+                 LIMIT 1'
+            );
+            $copySubscription->execute(['new_shop_id' => $shopId, 'source_shop_id' => $sourceShopId]);
+
+            return $shopId;
+        });
+    }
+
+    private function uniqueSlug(PDO $pdo, string $name): string
+    {
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', trim($name));
+        $base = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower((string) $ascii)), '-');
+        $base = $base !== '' ? $base : 'boutique';
+
+        do {
+            $slug = $base . '-' . strtolower(bin2hex(random_bytes(3)));
+            $statement = $pdo->prepare('SELECT COUNT(*) FROM shops WHERE slug = :slug');
+            $statement->execute(['slug' => $slug]);
+        } while ((int) $statement->fetchColumn() > 0);
+
+        return $slug;
+    }
+
     private function nullableString(mixed $value): ?string
     {
         $value = trim((string) ($value ?? ''));

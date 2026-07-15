@@ -351,13 +351,15 @@ class UserController extends AppController
             $roles = $statement->fetchAll();
 
             if (is_array($roles) && $roles !== []) {
-                return $roles;
+                return array_values(array_filter(
+                    $roles,
+                    fn (array $role): bool => !$this->roles->isSaasRoleName((string) ($role['nom'] ?? ''))
+                ));
             }
         } catch (Throwable) {
         }
 
         return [
-            ['id' => 1, 'nom' => 'Super Admin'],
             ['id' => 2, 'nom' => 'Gerant'],
             ['id' => 3, 'nom' => 'Caissier'],
         ];

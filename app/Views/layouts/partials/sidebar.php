@@ -8,7 +8,6 @@ $posLabel = (string) ($profile['pos_label'] ?? 'Caisse POS');
 $stockLabel = (string) ($profile['stock_label'] ?? 'Stock et inventaire');
 $supplyLabel = (string) ($profile['supply_label'] ?? 'Approvisionnements');
 $customerLabel = (string) ($profile['customer_label'] ?? 'Clients et credits');
-$activityLabel = (string) ($profile['activity_label'] ?? 'Administration activite');
 $categorySlug = (string) ($profile['slug'] ?? $activeShop['category_slug'] ?? '');
 $enabledModuleCodes = is_array($enabledModuleCodes ?? null) ? array_map('strval', $enabledModuleCodes) : [];
 $moduleAllowed = static function (?string $moduleCode) use ($enabledModuleCodes): bool {
@@ -56,7 +55,6 @@ $navSections = [
     [
         'label' => 'Administration',
         'items' => [
-            ['key' => 'shop_activity', 'label' => $activityLabel, 'href' => $url('/shops/activity'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'activity'],
             ['key' => 'shop_subscription', 'label' => 'Abonnement boutique', 'href' => $url('/shops/subscription'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'subscription'],
             ['key' => 'users', 'label' => 'Utilisateurs', 'href' => $url('/users'), 'roles' => ['admin', 'super_admin'], 'icon' => 'shield'],
             ['key' => 'roles', 'label' => 'Roles et permissions', 'href' => $url('/roles'), 'roles' => ['admin', 'super_admin'], 'icon' => 'key'],

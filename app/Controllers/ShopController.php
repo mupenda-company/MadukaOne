@@ -16,7 +16,51 @@ class ShopController extends AppController
 
     public function create(array $params = []): void
     {
-        require dirname(__DIR__) . '/Views/shops/create.php';
+        $shopId = $this->currentShopId();
+        $allowance = (new SubscriptionGate())->shopAllowanceForUser($this->currentUserId(), $shopId);
+
+        if (!$allowance['can_create']) {
+            $this->flashError((new SubscriptionGate())->shopCreationError($this->currentUserId(), $shopId) ?? 'Creation impossible.');
+            $this->redirect('/shops/subscription');
+        }
+
+        $this->render('shops/create', [
+            'pageTitle' => 'Nouvelle boutique',
+            'activeMenu' => '',
+            'categories' => $this->shops->activeCategories(),
+            'shopAllowance' => $allowance,
+        ]);
+    }
+
+    public function store(array $params = []): void
+    {
+        $shopId = $this->currentShopId();
+        $userId = $this->currentUserId();
+        $gate = new SubscriptionGate();
+        $error = $gate->shopCreationError($userId, $shopId);
+
+        if ($error !== null) {
+            $this->flashError($error);
+            $this->redirect('/shops/subscription');
+        }
+
+        $name = trim((string) ($_POST['nom'] ?? ''));
+        $rate = (float) ($_POST['taux_change_cdf'] ?? 0);
+
+        if ($name === '' || $rate <= 0) {
+            $this->flashError('Le nom et un taux de change valide sont obligatoires.');
+            $this->redirect('/shops/create');
+        }
+
+        try {
+            $newShopId = $this->shops->createForOwner($_POST, $userId, $shopId);
+            $_SESSION['current_shop_id'] = $newShopId;
+            $this->flashSuccess('Nouvelle boutique creee avec le plan actif.');
+            $this->redirect('/dashboard?shop_id=' . $newShopId);
+        } catch (Throwable $exception) {
+            $this->flashError('Creation impossible: ' . $exception->getMessage());
+            $this->redirect('/shops/create');
+        }
     }
 
     public function settings(array $params = []): void

@@ -37,8 +37,13 @@ final class ShopContext
 
             if (!$this->canAccessAllShops()) {
                 $shopId = (int) ($this->currentUser['shop_id'] ?? 0);
+                $userId = (int) ($this->currentUser['id'] ?? 0);
 
-                if ($shopId > 0) {
+                if ($shopId > 0 && $userId > 0) {
+                    $where .= ' AND (shops.id = :shop_id OR shops.owner_user_id = :owner_user_id)';
+                    $params['shop_id'] = $shopId;
+                    $params['owner_user_id'] = $userId;
+                } elseif ($shopId > 0) {
                     $where .= ' AND shops.id = :shop_id';
                     $params['shop_id'] = $shopId;
                 } else {

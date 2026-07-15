@@ -5,6 +5,11 @@ $userEmail = (string) ($currentUser['email'] ?? '');
 $userRole = ucfirst(str_replace('_', ' ', (string) ($currentUser['role'] ?? $currentUser['role_legacy'] ?? 'agent')));
 $activeShopName = (string) ($activeShop['nom'] ?? 'Boutique active');
 $userInitial = strtoupper(substr($userName, 0, 1));
+$shopAllowance = is_array($shopAllowance ?? null) ? $shopAllowance : [];
+$canCreateShop = (bool) ($shopAllowance['can_create'] ?? false);
+$remainingShops = $shopAllowance['remaining'] ?? 0;
+$shopLimit = $shopAllowance['limit'] ?? null;
+$nextPlan = is_array($shopAllowance['next_plan'] ?? null) ? $shopAllowance['next_plan'] : null;
 ?>
 <header class="app-topbar sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
     <div class="topbar-row flex min-h-16 items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
@@ -42,7 +47,19 @@ $userInitial = strtoupper(substr($userName, 0, 1));
                         <p class="px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Boutiques</p>
                         <?php foreach ($shops as $shop): ?>
                             <?php $isActiveShop = (int) ($shop['id'] ?? 0) === (int) ($activeShop['id'] ?? 0); ?>
-                            <a class="dropdown-item <?= $isActiveShop ? 'is-active' : '' ?>" href="<?= $url('/dashboard', ['shop_id' => (int) $shop['id']]) ?>" role="menuitem">
+                            <a
+                                class="dropdown-item <?= $isActiveShop ? 'is-active' : '' ?>"
+                                href="<?= $url('/dashboard', ['shop_id' => (int) $shop['id']]) ?>"
+                                role="menuitem"
+                                <?php if (!$isActiveShop): ?>
+                                    data-confirm
+                                    data-confirm-title="Changer de boutique ?"
+                                    data-confirm-message="Voulez-vous quitter <?= htmlspecialchars($activeShopName, ENT_QUOTES, 'UTF-8') ?> et passer vers <?= htmlspecialchars((string) ($shop['nom'] ?? 'cette boutique'), ENT_QUOTES, 'UTF-8') ?> ?"
+                                    data-confirm-accept="Oui, changer"
+                                    data-confirm-progress="Changement en cours..."
+                                    data-confirm-delay="2000"
+                                <?php endif; ?>
+                            >
                                 <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-teal-50 text-xs font-bold text-teal-700">
                                     <?= htmlspecialchars(strtoupper(substr((string) $shop['nom'], 0, 1)), ENT_QUOTES, 'UTF-8') ?>
                                 </span>
@@ -52,6 +69,33 @@ $userInitial = strtoupper(substr($userName, 0, 1));
                                 </span>
                             </a>
                         <?php endforeach; ?>
+
+                        <div class="mt-2 border-t border-slate-100 px-3 pb-2 pt-3">
+                            <?php if ($shopLimit === null && ($shopAllowance['active'] ?? false)): ?>
+                                <p class="mb-3 text-xs font-semibold text-teal-700">Boutiques illimitees avec le plan actuel.</p>
+                            <?php else: ?>
+                                <p class="mb-1 text-xs font-semibold text-slate-600">
+                                    <?= (int) $remainingShops ?> boutique(s) restante(s) sur <?= (int) $shopLimit ?>.
+                                </p>
+                                <p class="mb-3 text-xs text-slate-400"><?= (int) ($shopAllowance['used'] ?? count($shops)) ?> boutique(s) utilisee(s).</p>
+                            <?php endif; ?>
+
+                            <?php if ($canCreateShop): ?>
+                                <a class="btn-primary h-10 w-full px-3 text-sm" href="<?= $url('/shops/create') ?>" role="menuitem">Ajouter une nouvelle boutique</a>
+                            <?php else: ?>
+                                <div class="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                    <p class="text-xs font-bold text-amber-800">Limite du plan atteinte</p>
+                                    <p class="mt-1 text-xs leading-5 text-amber-700">
+                                        <?php if ($nextPlan !== null): ?>
+                                            Passez au plan <?= htmlspecialchars((string) ($nextPlan['nom'] ?? 'suivant'), ENT_QUOTES, 'UTF-8') ?> pour creer davantage de boutiques.
+                                        <?php else: ?>
+                                            Renouvelez votre abonnement ou contactez l administration SaaS.
+                                        <?php endif; ?>
+                                    </p>
+                                    <a class="btn-secondary mt-3 h-9 w-full px-3 text-xs" href="<?= $url('/shops/subscription') ?>" role="menuitem">Voir les plans d abonnement</a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>

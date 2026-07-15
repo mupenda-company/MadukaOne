@@ -24,6 +24,10 @@ abstract class AppController
         $shopCategoryProfile = $data['shopCategoryProfile'] ?? $this->shopCategoryProfile($activeShop);
         $businessSettings = $data['businessSettings'] ?? $this->businessSettings((int) ($activeShop['id'] ?? 0));
         $subscriptionSummary = $data['subscriptionSummary'] ?? $this->subscriptionSummary((int) ($activeShop['id'] ?? 0));
+        $shopAllowance = $data['shopAllowance'] ?? (new SubscriptionGate())->shopAllowanceForUser(
+            (int) ($currentUser['id'] ?? 0),
+            (int) ($activeShop['id'] ?? 0)
+        );
         $enabledModules = $data['enabledModules'] ?? $this->enabledModules((int) ($activeShop['id'] ?? 0));
         $enabledModuleCodes = $data['enabledModuleCodes'] ?? array_values(array_map(
             static fn (array $module): string => (string) ($module['code'] ?? ''),
@@ -37,6 +41,7 @@ abstract class AppController
             'shopCategoryProfile' => $shopCategoryProfile,
             'businessSettings' => $businessSettings,
             'subscriptionSummary' => $subscriptionSummary,
+            'shopAllowance' => $shopAllowance,
             'enabledModules' => $enabledModules,
             'enabledModuleCodes' => $enabledModuleCodes,
         ]);

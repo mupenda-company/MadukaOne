@@ -75,6 +75,40 @@ final class SubscriptionGate
         return $this->canUse($shopId, 'products', 'limite_produits', $additional);
     }
 
+    public function shopAllowanceForUser(int $userId, int $activeShopId): array
+    {
+        $subscription = $this->currentForShop($activeShopId);
+        $limit = $this->limitValue($subscription['limite_boutiques'] ?? null);
+        $used = $this->ownedShopsCount($userId, $activeShopId);
+        $remaining = $limit === null ? null : max(0, $limit - $used);
+
+        return [
+            'subscription' => $subscription,
+            'active' => $this->subscriptionIsActive($subscription),
+            'limit' => $limit,
+            'used' => $used,
+            'remaining' => $remaining,
+            'can_create' => $this->subscriptionIsActive($subscription) && ($limit === null || $remaining > 0),
+            'next_plan' => $this->nextPlan($limit),
+        ];
+    }
+
+    public function shopCreationError(int $userId, int $activeShopId): ?string
+    {
+        $allowance = $this->shopAllowanceForUser($userId, $activeShopId);
+
+        if (!$allowance['active']) {
+            return 'Abonnement inactif ou expire. Renouvelez votre abonnement avant de creer une boutique.';
+        }
+
+        if (!$allowance['can_create']) {
+            $nextPlan = is_array($allowance['next_plan']) ? (string) ($allowance['next_plan']['nom'] ?? '') : '';
+            return 'Limite de boutiques atteinte pour ce plan.' . ($nextPlan !== '' ? ' Passez au plan ' . $nextPlan . '.' : ' Contactez l administration SaaS.');
+        }
+
+        return null;
+    }
+
     public function creationError(int $shopId, string $resource): ?string
     {
         $subscription = $this->currentForShop($shopId);
@@ -154,6 +188,48 @@ final class SubscriptionGate
             return (int) $statement->fetchColumn();
         } catch (Throwable) {
             return 0;
+        }
+    }
+
+    private function ownedShopsCount(int $userId, int $activeShopId): int
+    {
+        if ($userId < 1) {
+            return 1;
+        }
+
+        try {
+            $statement = Database::connection()->prepare(
+                'SELECT COUNT(*) FROM shops WHERE actif = 1 AND (owner_user_id = :user_id OR id = :active_shop_id)'
+            );
+            $statement->execute(['user_id' => $userId, 'active_shop_id' => $activeShopId]);
+
+            return max(1, (int) $statement->fetchColumn());
+        } catch (Throwable) {
+            return 1;
+        }
+    }
+
+    private function nextPlan(?int $currentLimit): ?array
+    {
+        try {
+            $statement = Database::connection()->prepare(
+                'SELECT id, nom, code, limite_boutiques, prix_mensuel_usd
+                 FROM saas_subscription_plans
+                 WHERE actif = 1
+                   AND (:current_limit IS NOT NULL)
+                   AND (limite_boutiques > :current_limit_value OR limite_boutiques IS NULL)
+                 ORDER BY (limite_boutiques IS NULL) ASC, limite_boutiques ASC, prix_mensuel_usd ASC
+                 LIMIT 1'
+            );
+            $statement->execute([
+                'current_limit' => $currentLimit,
+                'current_limit_value' => $currentLimit ?? 0,
+            ]);
+            $plan = $statement->fetch();
+
+            return is_array($plan) ? $plan : null;
+        } catch (Throwable) {
+            return null;
         }
     }
 }

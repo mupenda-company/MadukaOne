@@ -16,6 +16,15 @@ final class SaasShopController extends BaseSaasAdminController
         ]);
     }
 
+    public function activities(array $params = []): void
+    {
+        $this->renderSaas('shops/activities', [
+            'pageTitle' => 'Administration des activites',
+            'activeMenu' => 'saas-activities',
+            'shops' => $this->repo->shopsWithMetrics(),
+        ]);
+    }
+
     public function select(array $params = []): void
     {
         $this->renderSaas('shops/select', [
@@ -75,7 +84,16 @@ final class SaasShopController extends BaseSaasAdminController
 
     public function accessShop(array $params = []): void
     {
-        $shopId = (int) ($params['id'] ?? 0);
+        $this->startShopAccess((int) ($params['id'] ?? 0), '/dashboard');
+    }
+
+    public function accessActivity(array $params = []): void
+    {
+        $this->startShopAccess((int) ($params['id'] ?? 0), '/shops/activity');
+    }
+
+    private function startShopAccess(int $shopId, string $destination): void
+    {
         $shop = $this->repo->findShop($shopId);
 
         if ($shop === null) {
@@ -91,7 +109,7 @@ final class SaasShopController extends BaseSaasAdminController
         ];
 
         $this->flashSuccess('Acces anonyme a la boutique active: ' . (string) ($shop['nom'] ?? 'Boutique') . '.');
-        $this->redirect('/dashboard?shop_id=' . $shopId);
+        $this->redirect($destination . '?shop_id=' . $shopId);
     }
 
     public function update(array $params = []): void

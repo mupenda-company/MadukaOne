@@ -147,6 +147,7 @@ $url = static function (string $path, array $query = []) use ($basePath): string
             if (confirmAccept) {
                 confirmAccept.textContent = trigger.getAttribute('data-confirm-accept') || 'Confirmer';
                 confirmAccept.dataset.progressText = trigger.getAttribute('data-confirm-progress') || 'Action en cours...';
+                confirmAccept.dataset.delay = trigger.getAttribute('data-confirm-delay') || '0';
                 confirmAccept.disabled = false;
             }
 
@@ -246,22 +247,39 @@ $url = static function (string $path, array $query = []) use ($basePath): string
             }
 
             const progressText = confirmAccept.dataset.progressText || 'Action en cours...';
+            const delay = Math.max(0, Number.parseInt(confirmAccept.dataset.delay || '0', 10) || 0);
             confirmAccept.disabled = true;
             confirmAccept.textContent = progressText;
+
+            if (delay > 0) {
+                const spinner = document.createElement('span');
+                spinner.className = 'mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white align-[-2px]';
+                spinner.setAttribute('aria-hidden', 'true');
+                confirmAccept.prepend(spinner);
+            }
 
             if (confirmStatus) {
                 confirmStatus.textContent = progressText;
                 confirmStatus.classList.remove('hidden');
             }
 
-            if (target.type === 'form' && target.form instanceof HTMLFormElement) {
-                target.form.submit();
+            const continueAction = () => {
+                if (target.type === 'form' && target.form instanceof HTMLFormElement) {
+                    target.form.submit();
+                    return;
+                }
+
+                if (target.type === 'href' && target.href) {
+                    window.location.href = target.href;
+                }
+            };
+
+            if (delay > 0) {
+                window.setTimeout(continueAction, delay);
                 return;
             }
 
-            if (target.type === 'href' && target.href) {
-                window.location.href = target.href;
-            }
+            continueAction();
         });
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && shopMenu?.classList.contains('is-open')) {
