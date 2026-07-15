@@ -317,6 +317,10 @@ final class AuthController
 
     private function redirectAfterLogin(array $user): never
     {
+        if ($this->users->isSaasAdminUser($user)) {
+            $this->redirect('/saas-admin');
+        }
+
         $role = $this->resolveRole($user);
         $this->redirect($role === 'agent' ? '/pos' : '/dashboard');
     }

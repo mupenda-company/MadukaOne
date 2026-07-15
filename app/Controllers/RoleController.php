@@ -53,6 +53,11 @@ class RoleController extends AppController
             $this->redirect('/roles/create');
         }
 
+        if ($this->roles->isSaasRoleName($name)) {
+            $this->flashError('Ce role est reserve a l espace de gestion SaaS.');
+            $this->redirect('/roles/create');
+        }
+
         $permissions = $this->permissionsPayload($_POST['permissions'] ?? []);
 
         try {

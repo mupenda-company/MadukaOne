@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS shops;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =========================================================================
--- 1. CONFIGURATION MULTI-BOUTIQUES & RÔLES
+-- 1. CONFIGURATION MULTI-BOUTIQUES & RÃ”LES
 -- =========================================================================
 
 CREATE TABLE shops (
@@ -44,7 +44,7 @@ CREATE TABLE shops (
 CREATE TABLE roles (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   nom VARCHAR(50) NOT NULL,
-  permissions TEXT NULL, -- Stockage en format JSON ou texte des droits d'accès
+  permissions TEXT NULL, -- Stockage en format JSON ou texte des droits d'accÃ¨s
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_roles_nom (nom)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -55,7 +55,7 @@ CREATE TABLE roles (
 
 CREATE TABLE users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  shop_id BIGINT UNSIGNED NULL, -- Si NULL, super-admin ayant accès à toutes les boutiques
+  shop_id BIGINT UNSIGNED NULL, -- Si NULL, super-admin ayant accÃ¨s Ã  toutes les boutiques
   role_id BIGINT UNSIGNED NULL,
   prenom VARCHAR(120) NULL,
   nom VARCHAR(120) NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE users (
   invitation_code VARCHAR(64) NULL,
   email_verified_at DATETIME NULL,
   avatar_url VARCHAR(500) NULL,
-  role_legacy ENUM('admin', 'agent') NOT NULL DEFAULT 'agent', -- Rétrocompatibilité
+  role_legacy ENUM('admin', 'agent') NOT NULL DEFAULT 'agent', -- RÃ©trocompatibilitÃ©
   actif TINYINT(1) NOT NULL DEFAULT 1,
   derniere_connexion DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -111,7 +111,7 @@ CREATE TABLE suppliers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================================================
--- 3. PRODUITS (SÉPARÉS PAR BOUTIQUE)
+-- 3. PRODUITS (SÃ‰PARÃ‰S PAR BOUTIQUE)
 -- =========================================================================
 
 CREATE TABLE products (
@@ -161,11 +161,11 @@ CREATE TABLE supplies (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   shop_id BIGINT UNSIGNED NOT NULL,
   supplier_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL, -- L'administrateur ou acheteur ayant validé l'entrée
+  user_id BIGINT UNSIGNED NOT NULL, -- L'administrateur ou acheteur ayant validÃ© l'entrÃ©e
   numero_arrivage VARCHAR(50) NOT NULL,
   date_approvisionnement DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   total_facture DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  statut ENUM('en_attente', 'reçu', 'annule') NOT NULL DEFAULT 'reçu',
+  statut ENUM('en_attente', 'reÃ§u', 'annule') NOT NULL DEFAULT 'reÃ§u',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_supplies_numero (numero_arrivage),
   KEY idx_supplies_shop (shop_id),
@@ -179,7 +179,7 @@ CREATE TABLE supply_details (
   supply_id BIGINT UNSIGNED NOT NULL,
   product_id BIGINT UNSIGNED NOT NULL,
   quantite INT NOT NULL,
-  prix_achat_facture DECIMAL(12,2) NOT NULL, -- Prix d'achat spécifique à cet arrivage
+  prix_achat_facture DECIMAL(12,2) NOT NULL, -- Prix d'achat spÃ©cifique Ã  cet arrivage
   total_ligne DECIMAL(12,2) NOT NULL,
   CONSTRAINT fk_supply_details_parent FOREIGN KEY (supply_id) REFERENCES supplies(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   CONSTRAINT fk_supply_details_product FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -194,13 +194,18 @@ CREATE TABLE supply_details (
 CREATE TABLE sales (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   shop_id BIGINT UNSIGNED NOT NULL,
-  customer_id BIGINT UNSIGNED NULL, -- Peut être anonyme (Client Comptant)
-  user_id BIGINT UNSIGNED NOT NULL,  -- L'agent qui réalise la vente
+  customer_id BIGINT UNSIGNED NULL, -- Peut Ãªtre anonyme (Client Comptant)
+  user_id BIGINT UNSIGNED NOT NULL,  -- L'agent qui rÃ©alise la vente
   numero_facture VARCHAR(50) NOT NULL,
   date_vente DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   total_montant DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  montant_recu DECIMAL(12,2) NOT NULL DEFAULT 0.00,   -- Argent donné par le client
-  montant_dette DECIMAL(12,2) NOT NULL DEFAULT 0.00,  -- Reste à payer si crédit/facture partielle
+  total_montant_saisi DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  devise_saisie ENUM('USD','CDF') NOT NULL DEFAULT 'USD',
+  montant_recu DECIMAL(12,2) NOT NULL DEFAULT 0.00,   -- Argent donnÃ© par le client
+  montant_recu_saisi DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  devise_recu ENUM('USD','CDF') NOT NULL DEFAULT 'USD',
+  taux_change_saisie DECIMAL(12,4) NOT NULL DEFAULT 2800.0000,
+  montant_dette DECIMAL(12,2) NOT NULL DEFAULT 0.00,  -- Reste Ã  payer si crÃ©dit/facture partielle
   mode_paiement ENUM('cash', 'mobile_money', 'carte', 'virement', 'credit', 'mixte') NOT NULL DEFAULT 'cash',
   statut ENUM('validee', 'annulee') NOT NULL DEFAULT 'validee',
   motif_annulation VARCHAR(255) NULL,
@@ -228,8 +233,12 @@ CREATE TABLE sale_details (
   product_id BIGINT UNSIGNED NOT NULL,
   quantite INT NOT NULL,
   prix_unitaire_vendu DECIMAL(12,2) NOT NULL,
-  prix_achat_unitaire DECIMAL(12,2) NOT NULL DEFAULT 0.00, -- Figé au moment de la vente pour marge nette exacte
+  prix_unitaire_vendu_saisi DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  devise_saisie ENUM('USD','CDF') NOT NULL DEFAULT 'USD',
+  taux_change_saisie DECIMAL(12,4) NOT NULL DEFAULT 2800.0000,
+  prix_achat_unitaire DECIMAL(12,2) NOT NULL DEFAULT 0.00, -- FigÃ© au moment de la vente pour marge nette exacte
   total_ligne DECIMAL(12,2) NOT NULL,
+  total_ligne_saisi DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_sale_details_sale_id (sale_id),
   KEY idx_sale_details_product_id (product_id),
@@ -242,16 +251,16 @@ CREATE TABLE sale_details (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================================================
--- 6. TRAÇABILITÉ : MOUVEMENTS DE STOCK IMMUABLES
+-- 6. TRAÃ‡ABILITÃ‰ : MOUVEMENTS DE STOCK IMMUABLES
 -- =========================================================================
 
 CREATE TABLE stock_movements (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   shop_id BIGINT UNSIGNED NOT NULL,
   product_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL, -- Qui a fait ou déclenché l'opération
+  user_id BIGINT UNSIGNED NOT NULL, -- Qui a fait ou dÃ©clenchÃ© l'opÃ©ration
   sale_id BIGINT UNSIGNED NULL,
-  supply_id BIGINT UNSIGNED NULL,  -- Si lié à un arrivage de marchandise
+  supply_id BIGINT UNSIGNED NULL,  -- Si liÃ© Ã  un arrivage de marchandise
   type_mouvement ENUM('entree', 'sortie', 'ajustement', 'annulation') NOT NULL,
   quantite INT NOT NULL,
   stock_avant INT NOT NULL,
@@ -274,13 +283,13 @@ CREATE TABLE stock_movements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================================================
--- 7. FINANCES : GESTION DES DÉPENSES OPÉRATIONNELLES (CHARGES)
+-- 7. FINANCES : GESTION DES DÃ‰PENSES OPÃ‰RATIONNELLES (CHARGES)
 -- =========================================================================
 
 CREATE TABLE expenses (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   shop_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL, -- Qui a enregistré la dépense
+  user_id BIGINT UNSIGNED NOT NULL, -- Qui a enregistrÃ© la dÃ©pense
   titre VARCHAR(120) NOT NULL,      -- Ex: Facture SNEL, Carburant groupe, Transport
   description TEXT NULL,
   montant DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -295,7 +304,7 @@ CREATE TABLE expenses (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================================================
--- 8. TRIGGERS SÉCURITÉ - CONTRE LE VOL ET LA MODIFICATION RETROACTIVE
+-- 8. TRIGGERS SÃ‰CURITÃ‰ - CONTRE LE VOL ET LA MODIFICATION RETROACTIVE
 -- =========================================================================
 
 DELIMITER $$
@@ -311,7 +320,7 @@ BEGIN
   END IF;
 END$$
 
--- 2. Calcul automatique de la ligne de vente (quantité * PU)
+-- 2. Calcul automatique de la ligne de vente (quantitÃ© * PU)
 CREATE TRIGGER trg_sale_details_before_insert_calculate_total
 BEFORE INSERT ON sale_details
 FOR EACH ROW
@@ -319,7 +328,7 @@ BEGIN
   SET NEW.total_ligne = NEW.quantite * NEW.prix_unitaire_vendu;
 END$$
 
--- 3. Verrouillage strict des lignes de facturation (Empêche l'agent de modifier après encaissement)
+-- 3. Verrouillage strict des lignes de facturation (EmpÃªche l'agent de modifier aprÃ¨s encaissement)
 CREATE TRIGGER trg_sale_details_before_update_block
 BEFORE UPDATE ON sale_details
 FOR EACH ROW
@@ -336,7 +345,7 @@ BEGIN
     SET MESSAGE_TEXT = 'Suppression interdite: les details de vente sont non supprimables.';
 END$$
 
--- 4. Verrouillage de l'en-tête de vente : Pas d'effacement physique
+-- 4. Verrouillage de l'en-tÃªte de vente : Pas d'effacement physique
 CREATE TRIGGER trg_sales_before_delete_block
 BEFORE DELETE ON sales
 FOR EACH ROW
@@ -345,7 +354,7 @@ BEGIN
     SET MESSAGE_TEXT = 'Suppression interdite: une vente doit rester historisee pour audit.';
 END$$
 
--- 5. Immuabilité absolue de l'historique des flux de stock (Audit-trail intègre)
+-- 5. ImmuabilitÃ© absolue de l'historique des flux de stock (Audit-trail intÃ¨gre)
 CREATE TRIGGER trg_stock_movements_before_update_block
 BEFORE UPDATE ON stock_movements
 FOR EACH ROW
@@ -362,7 +371,7 @@ BEGIN
     SET MESSAGE_TEXT = 'Suppression interdite: le journal des mouvements de stock est immuable.';
 END$$
 
--- 6. Verrouillage de l'historique des dépenses après insertion (Évite le blanchiment ou masquage de vol)
+-- 6. Verrouillage de l'historique des dÃ©penses aprÃ¨s insertion (Ã‰vite le blanchiment ou masquage de vol)
 CREATE TRIGGER trg_expenses_before_update_block
 BEFORE UPDATE ON expenses
 FOR EACH ROW
@@ -382,26 +391,26 @@ END$$
 DELIMITER ;
 
 -- =========================================================================
--- 9. DONNÉES D'INITIALISATION SÉCURISÉES
+-- 9. DONNÃ‰ES D'INITIALISATION SÃ‰CURISÃ‰ES
 -- =========================================================================
 
--- Création de la boutique témoin principale
+-- CrÃ©ation de la boutique tÃ©moin principale
 INSERT INTO shops (id, nom, adresse, telephone, email, devise_principale, taux_change_cdf, actif)
 VALUES (1, 'Boutique Pilote - Centre Ville', 'Av. Principale No 10', '+243000000000', NULL, 'USD', 2400.0000, 1);
 
--- Création des rôles par défaut
+-- CrÃ©ation des rÃ´les par dÃ©faut
 INSERT INTO roles (id, nom, permissions) 
 VALUES 
 (1, 'Super Admin', '{"all": true}'),
 (2, 'Gerant', '{"sales_view":true,"stock_adjust":true,"expenses_add":true}'),
 (3, 'Caissier', '{"pos_access":true}');
 
--- Insertion du compte Administrateur Principal (Rattaché à la boutique 1 par défaut)
+-- Insertion du compte Administrateur Principal (RattachÃ© Ã  la boutique 1 par dÃ©faut)
 INSERT INTO users (nom, email, password_hash, role_legacy, role_id, shop_id, actif)
 VALUES (
   'Administrateur',
   'admin@example.com',
-  '$2y$10$P6GArcijgFX6rQVQQTxxg.TusYWUJObGMjjfuMtJOB1B.dHskS2JC', -- Défaut: admin123
+  '$2y$10$P6GArcijgFX6rQVQQTxxg.TusYWUJObGMjjfuMtJOB1B.dHskS2JC', -- DÃ©faut: admin123
   'admin',
   1,
   1,

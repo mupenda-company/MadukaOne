@@ -565,7 +565,7 @@ class ReportController extends AppController
         $statement->execute(['shop_id' => $shopId]);
         $sales = $statement->fetch() ?: ['revenue' => 0, 'cost' => 0];
 
-        $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id');
+        $expenses = Database::connection()->prepare('SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id AND statut = "active"');
         $expenses->execute(['shop_id' => $shopId]);
         $expenseTotal = (float) $expenses->fetchColumn();
         $grossMargin = (float) $sales['revenue'] - (float) $sales['cost'];
@@ -862,9 +862,9 @@ class ReportController extends AppController
         $content .= $this->pdfSectionTitle('2. INDICATEURS CLÉS', $left, $y, $contentWidth);
         $y -= 55;
         $indicators = [
-            ['VENTES VALIDÉES', $this->money((float) ($overview['validated_revenue'] ?? 0)), (int) ($overview['validated_count'] ?? 0) . ' ticket(s)', [0.02, 0.49, 0.40]],
-            ['ENCAISSEMENTS', $this->money((float) ($overview['received_total'] ?? 0)), 'Montant reçu', [0.07, 0.32, 0.70]],
-            ['CRÉDIT CLIENT', $this->money((float) ($overview['debt_total'] ?? 0)), 'Reste à encaisser', [0.82, 0.13, 0.25]],
+            ['VENTES VALIDÉES', $this->pdfMoneyLines((float) ($overview['validated_revenue'] ?? 0)), (int) ($overview['validated_count'] ?? 0) . ' ticket(s)', [0.02, 0.49, 0.40]],
+            ['ENCAISSEMENTS', $this->pdfMoneyLines((float) ($overview['received_total'] ?? 0)), 'Montant reçu', [0.07, 0.32, 0.70]],
+            ['CRÉDIT CLIENT', $this->pdfMoneyLines((float) ($overview['debt_total'] ?? 0)), 'Reste à encaisser', [0.82, 0.13, 0.25]],
             ['ARTICLES VENDUS', (string) (int) ($overview['items_sold'] ?? 0), 'Quantités POS', [0.08, 0.10, 0.18]],
         ];
         $cardW = $contentWidth / 4;
@@ -875,8 +875,14 @@ class ReportController extends AppController
             $content .= $this->pdfSetStroke($border[0], $border[1], $border[2]);
             $content .= $this->pdfRect($x, $y, $cardW, 45, 'S');
             $content .= $this->pdfTextAt($item[0], $x + 8, $y + 30, 6.5, 'F2', $muted);
-            $content .= $this->pdfTextAt($item[1], $x + 8, $y + 17, 12, 'F2', $item[3]);
-            $content .= $this->pdfTextAt($item[2], $x + 8, $y + 7, 6.5, 'F1', $dark);
+            if (is_array($item[1])) {
+                $content .= $this->pdfTextAt((string) ($item[1][0] ?? ''), $x + 8, $y + 20, 8.7, 'F2', $item[3]);
+                $content .= $this->pdfTextAt((string) ($item[1][1] ?? ''), $x + 8, $y + 11, 6.6, 'F1', $item[3]);
+                $content .= $this->pdfTextAt($item[2], $x + 8, $y + 3, 5.8, 'F1', $dark);
+            } else {
+                $content .= $this->pdfTextAt($item[1], $x + 8, $y + 17, 12, 'F2', $item[3]);
+                $content .= $this->pdfTextAt($item[2], $x + 8, $y + 7, 6.5, 'F1', $dark);
+            }
         }
 
         $y -= 70;
@@ -887,15 +893,15 @@ class ReportController extends AppController
             $paymentRows[] = [
                 (string) ($payment['mode_paiement'] ?? 'cash'),
                 (string) (int) ($payment['tickets'] ?? 0),
-                $this->money((float) ($payment['revenue'] ?? 0)),
-                $this->money((float) ($payment['debt'] ?? 0)),
+                $this->pdfMoneyLines((float) ($payment['revenue'] ?? 0)),
+                $this->pdfMoneyLines((float) ($payment['debt'] ?? 0)),
             ];
         }
         if ($paymentRows === []) {
-            $paymentRows[] = ['Aucun paiement', '0', '0,00 USD', '0,00 USD'];
+            $paymentRows[] = ['Aucun paiement', '0', ['0,00 USD', '0,00 CDF'], ['0,00 USD', '0,00 CDF']];
         }
         $content .= $this->pdfTable($left, $y, $contentWidth, ['MODE', 'TICKETS', 'TOTAL', 'CRÉDIT'], $paymentRows, [0.34, 0.16, 0.25, 0.25], 5);
-        $y -= 28 + (min(5, count($paymentRows)) * 20);
+        $y -= 28 + (min(5, count($paymentRows)) * 25);
 
         $content .= $this->pdfSectionTitle('4. TOP PRODUITS VENDUS', $left, $y, $contentWidth);
         $y -= 12;
@@ -904,12 +910,12 @@ class ReportController extends AppController
             $productRows[] = [
                 (string) ($product['product_name'] ?? 'Produit'),
                 (string) (int) ($product['quantity'] ?? 0),
-                $this->money((float) ($product['revenue'] ?? 0)),
-                $this->money((float) ($product['margin'] ?? 0)),
+                $this->pdfMoneyLines((float) ($product['revenue'] ?? 0)),
+                $this->pdfMoneyLines((float) ($product['margin'] ?? 0)),
             ];
         }
         if ($productRows === []) {
-            $productRows[] = ['Aucun produit vendu', '0', '0,00 USD', '0,00 USD'];
+            $productRows[] = ['Aucun produit vendu', '0', ['0,00 USD', '0,00 CDF'], ['0,00 USD', '0,00 CDF']];
         }
         $content .= $this->pdfTable($left, $y, $contentWidth, ['PRODUIT', 'QTÉ', 'VENTES', 'MARGE'], $productRows, [0.46, 0.12, 0.21, 0.21], 5);
 
@@ -1079,7 +1085,7 @@ class ReportController extends AppController
     {
         $content = '';
         $headerHeight = 20.0;
-        $rowHeight = 20.0;
+        $rowHeight = 25.0;
         $y = $yTop - $headerHeight;
         $dark = [0.04, 0.07, 0.12];
         $border = [0.83, 0.86, 0.90];
@@ -1104,8 +1110,13 @@ class ReportController extends AppController
             $cursorX = $x;
             foreach (array_values($row) as $index => $cell) {
                 $cellW = $width * (float) ($ratios[$index] ?? (1 / count($headers)));
-                $text = $this->truncatePdfText((string) $cell, $cellW > 180 ? 36 : 20);
-                $content .= $this->pdfTextAt($text, $cursorX + 6, $rowY + 7, 7, 'F1', [0.04, 0.07, 0.12]);
+                if (is_array($cell)) {
+                    $content .= $this->pdfTextAt((string) ($cell[0] ?? ''), $cursorX + 6, $rowY + 14, 6.4, 'F2', [0.04, 0.07, 0.12]);
+                    $content .= $this->pdfTextAt((string) ($cell[1] ?? ''), $cursorX + 6, $rowY + 6, 6.2, 'F1', [0.04, 0.07, 0.12]);
+                } else {
+                    $text = $this->truncatePdfText((string) $cell, $cellW > 180 ? 36 : 22);
+                    $content .= $this->pdfTextAt($text, $cursorX + 6, $rowY + 9, 7, 'F1', [0.04, 0.07, 0.12]);
+                }
                 $cursorX += $cellW;
             }
         }
@@ -1294,5 +1305,21 @@ class ReportController extends AppController
         $cdf = number_format($value * $rate, 2, ',', ' ') . ' CDF';
 
         return $currency === 'CDF' ? $cdf . ' (' . $usd . ')' : $usd . ' (' . $cdf . ')';
+    }
+
+    /**
+     * PDF cells are narrow, so each currency gets its own line instead of a truncated inline value.
+     *
+     * @return array<int, string>
+     */
+    private function pdfMoneyLines(float $value): array
+    {
+        $shop = $this->activeShop($this->shops(), $this->currentUser());
+        $currency = in_array(($shop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $shop['devise_principale'] : 'USD';
+        $rate = (float) (($shop['taux_change_cdf'] ?? 2800) ?: 2800);
+        $usd = number_format($value, 2, ',', ' ') . ' USD';
+        $cdf = number_format($value * $rate, 2, ',', ' ') . ' CDF';
+
+        return $currency === 'CDF' ? [$cdf, $usd] : [$usd, $cdf];
     }
 }

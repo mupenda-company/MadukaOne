@@ -4,6 +4,22 @@ $sale = is_array($sale ?? null) ? $sale : [];
 $saleDetails = is_array($saleDetails ?? null) ? $saleDetails : [];
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
 $money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$moneyExact = static function ($usd, $entered = null, $currency = null): string {
+    $currency = in_array(($currency ?? 'USD'), ['USD', 'CDF'], true) ? (string) $currency : 'USD';
+    $enteredAmount = (float) ($entered ?? 0);
+    $usdAmount = (float) $usd;
+
+    if ($enteredAmount <= 0) {
+        return number_format($usdAmount, 2, ',', ' ') . ' USD';
+    }
+
+    $primary = $currency === 'CDF'
+        ? number_format($enteredAmount, 0, ',', ' ') . ' CDF'
+        : number_format($enteredAmount, 2, ',', ' ') . ' USD';
+    $secondary = $currency === 'CDF' ? number_format($usdAmount, 2, ',', ' ') . ' USD' : '';
+
+    return $secondary !== '' ? $primary . '<span class="block text-xs font-semibold text-slate-500">' . $secondary . '</span>' : $primary;
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateLabel = static function ($value): string {
     $timestamp = strtotime((string) ($value ?? ''));
@@ -123,8 +139,8 @@ $modeLabel = static fn (string $mode): string => match ($mode) {
                                 <p class="mt-1 text-xs text-slate-500"><?= $safe($detail['product_ref'] ?? '') ?></p>
                             </td>
                             <td class="px-3 py-3 text-right"><?= (int) ($detail['quantite'] ?? 0) ?></td>
-                            <td class="px-3 py-3 text-right"><?= $money($detail['prix_unitaire_vendu'] ?? 0) ?></td>
-                            <td class="px-3 py-3 text-right font-bold"><?= $money($detail['total_ligne'] ?? 0) ?></td>
+                            <td class="px-3 py-3 text-right"><?= $moneyExact($detail['prix_unitaire_vendu'] ?? 0, $detail['prix_unitaire_vendu_saisi'] ?? null, $detail['devise_saisie'] ?? null) ?></td>
+                            <td class="px-3 py-3 text-right font-bold"><?= $moneyExact($detail['total_ligne'] ?? 0, $detail['total_ligne_saisi'] ?? null, $detail['devise_saisie'] ?? null) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -134,11 +150,11 @@ $modeLabel = static fn (string $mode): string => match ($mode) {
         <section class="mt-8 ml-auto w-full max-w-sm space-y-2 text-sm">
             <div class="flex justify-between border-b border-slate-200 py-2">
                 <span class="text-slate-500">Total</span>
-                <strong><?= $money($sale['total_montant'] ?? 0) ?></strong>
+                <strong><?= $moneyExact($sale['total_montant'] ?? 0, $sale['total_montant_saisi'] ?? null, $sale['devise_saisie'] ?? null) ?></strong>
             </div>
             <div class="flex justify-between border-b border-slate-200 py-2">
                 <span class="text-slate-500">Montant reçu</span>
-                <strong class="text-teal-700"><?= $money($sale['montant_recu'] ?? 0) ?></strong>
+                <strong class="text-teal-700"><?= $moneyExact($sale['montant_recu'] ?? 0, $sale['montant_recu_saisi'] ?? null, $sale['devise_recu'] ?? null) ?></strong>
             </div>
             <div class="flex justify-between bg-teal-50 px-3 py-3">
                 <span class="font-bold text-teal-900">Reste / crédit</span>

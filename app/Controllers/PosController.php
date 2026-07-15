@@ -21,7 +21,7 @@ class PosController extends AppController
     {
         $shopId = $this->currentShopId();
         $statement = Database::connection()->prepare(
-            'SELECT id, nom, ref, prix_vente, quantite_stock
+            'SELECT id, nom, ref, prix_vente, prix_vente_devise, prix_vente_montant, quantite_stock, alerte_stock_min, date_expiration
              FROM products
              WHERE shop_id = :shop_id AND actif = 1
              ORDER BY nom ASC'
@@ -41,15 +41,18 @@ class PosController extends AppController
     public function sales(array $params = []): void
     {
         $shopId = $this->currentShopId();
-        $sales = $this->sales->allByShop($shopId, 1000);
-        $summary = $this->sales->summaryByShop($shopId);
+        $filters = $this->salesFiltersFromQuery();
+        $isExportRequest = in_array(strtolower((string) ($_GET['export'] ?? '')), ['pdf', 'xlsx'], true)
+            || in_array(strtolower((string) ($_GET['export_preview'] ?? '')), ['pdf', 'xlsx'], true);
+        $sales = $this->sales->allByShop($shopId, $isExportRequest ? null : 1000, $filters);
+        $summary = $this->sales->summaryByShopFiltered($shopId, $filters);
         $shops = $this->shops();
         $currentUser = $this->currentUser();
         $activeShop = $this->activeShop($shops, $currentUser);
         $export = strtolower((string) ($_GET['export'] ?? ''));
         $preview = strtolower((string) ($_GET['export_preview'] ?? ''));
         $confirmed = (string) ($_GET['confirm'] ?? '') === '1';
-        $report = $this->salesHistoryReportData($sales, $summary, $activeShop);
+        $report = $this->salesHistoryReportData($sales, $summary, $activeShop, $filters);
 
         if (in_array($preview, ['pdf', 'xlsx'], true)) {
             $this->render('reports/export-preview', [
@@ -106,6 +109,7 @@ class PosController extends AppController
             'activeMenu' => 'sales',
             'sales' => $sales,
             'salesSummary' => $summary,
+            'salesFilters' => $filters,
         ]);
     }
 
@@ -311,7 +315,79 @@ class PosController extends AppController
         return $statement->fetchAll();
     }
 
-    private function salesHistoryReportData(array $sales, array $summary, array $activeShop): array
+    private function salesFiltersFromQuery(): array
+    {
+        $status = strtolower(trim((string) ($_GET['status'] ?? 'all')));
+        $payment = strtolower(trim((string) ($_GET['payment'] ?? 'all')));
+        $period = strtolower(trim((string) ($_GET['period'] ?? 'all')));
+        $debt = strtolower(trim((string) ($_GET['debt'] ?? 'all')));
+
+        return [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'status' => in_array($status, ['all', 'validee', 'annulee'], true) ? $status : 'all',
+            'payment' => in_array($payment, ['all', 'cash', 'mobile_money', 'carte', 'virement', 'credit', 'mixte'], true) ? $payment : 'all',
+            'period' => in_array($period, ['all', 'today', 'week', 'month'], true) ? $period : 'all',
+            'debt' => in_array($debt, ['all', 'paid', 'debt'], true) ? $debt : 'all',
+            'date_debut' => $this->dateFilterValue($_GET['date_debut'] ?? ''),
+            'date_fin' => $this->dateFilterValue($_GET['date_fin'] ?? ''),
+        ];
+    }
+
+    private function dateFilterValue(mixed $value): string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '';
+        }
+
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', substr($value, 0, 10));
+
+        return $date instanceof DateTimeImmutable ? $date->format('Y-m-d') : '';
+    }
+
+    private function salesPeriodDisplay(array $filters): string
+    {
+        $parts = [];
+        $period = (string) ($filters['period'] ?? 'all');
+        $status = (string) ($filters['status'] ?? 'all');
+        $payment = (string) ($filters['payment'] ?? 'all');
+        $debt = (string) ($filters['debt'] ?? 'all');
+        $search = trim((string) ($filters['search'] ?? ''));
+        $dateStart = trim((string) ($filters['date_debut'] ?? ''));
+        $dateEnd = trim((string) ($filters['date_fin'] ?? ''));
+
+        if ($dateStart !== '' || $dateEnd !== '') {
+            $parts[] = 'Dates: ' . ($dateStart !== '' ? date('d/m/Y', strtotime($dateStart)) : 'début')
+                . ' - ' . ($dateEnd !== '' ? date('d/m/Y', strtotime($dateEnd)) : 'fin');
+        } else {
+            $parts[] = match ($period) {
+                'today' => 'Aujourd\'hui',
+                'week' => '7 derniers jours',
+                'month' => '30 derniers jours',
+                default => 'Toutes les ventes',
+            };
+        }
+
+        if ($status !== 'all') {
+            $parts[] = $status === 'annulee' ? 'Annulées' : 'Validées';
+        }
+
+        if ($payment !== 'all') {
+            $parts[] = 'Paiement: ' . $payment;
+        }
+
+        if ($debt !== 'all') {
+            $parts[] = $debt === 'debt' ? 'Avec crédit' : 'Payées';
+        }
+
+        if ($search !== '') {
+            $parts[] = 'Recherche: ' . $search;
+        }
+
+        return implode(' - ', $parts);
+    }
+
+    private function salesHistoryReportData(array $sales, array $summary, array $activeShop, array $filters = []): array
     {
         $payments = [];
 
@@ -337,12 +413,18 @@ class PosController extends AppController
         return [
             'activeShop' => $activeShop,
             'reportFilter' => [
-                'period' => 'all',
-                'label' => 'Toutes les ventes',
+                'period' => (string) ($filters['period'] ?? 'all'),
+                'label' => $this->salesPeriodDisplay($filters),
                 'start' => null,
                 'end' => null,
+                'search' => (string) ($filters['search'] ?? ''),
+                'status' => (string) ($filters['status'] ?? 'all'),
+                'payment' => (string) ($filters['payment'] ?? 'all'),
+                'debt' => (string) ($filters['debt'] ?? 'all'),
+                'date_debut' => (string) ($filters['date_debut'] ?? ''),
+                'date_fin' => (string) ($filters['date_fin'] ?? ''),
             ],
-            'periodDisplay' => 'Toutes les ventes disponibles',
+            'periodDisplay' => $this->salesPeriodDisplay($filters),
             'overview' => [
                 'validated_count' => (int) ($summary['sales_count'] ?? 0) - (int) ($summary['cancelled_count'] ?? 0),
                 'cancelled_count' => (int) ($summary['cancelled_count'] ?? 0),
@@ -584,7 +666,7 @@ class PosController extends AppController
         $content .= $this->pdfTable($left, $y, $contentWidth, ['MODE', 'TICKETS', 'TOTAL', 'CRÉDIT'], $paymentRows, [0.34, 0.16, 0.25, 0.25], 4);
         $y -= 28 + (min(4, count($paymentRows)) * 20);
 
-        $content .= $this->pdfSectionTitle('4. DERNIERS TICKETS', $left, $y, $contentWidth);
+        $content .= $this->pdfSectionTitle('4. TICKETS EXPORTES', $left, $y, $contentWidth);
         $y -= 12;
         $ticketRows = [];
         foreach (array_slice($sales, 0, 7) as $sale) {
@@ -603,9 +685,40 @@ class PosController extends AppController
         $footerY = 34.0;
         $content .= $this->pdfLine($left, $footerY + 16, $right, $footerY + 16, $border);
         $content .= $this->pdfTextAt('MadukaOne - Historique des ventes généré automatiquement', $left, $footerY, 7, 'F1', $muted);
-        $content .= $this->pdfTextAt('Page 1/1', $right - 35, $footerY, 7, 'F1', $muted);
+        $content .= $this->pdfTextAt('Page 1', $right - 35, $footerY, 7, 'F1', $muted);
 
-        return $this->pdfFromContentStreams([$content]);
+        $streams = [$content];
+        $remainingSales = array_slice($sales, 7);
+        $pageNumber = 2;
+        foreach (array_chunk($remainingSales, 24) as $salesPage) {
+            $page = '';
+            $page .= $this->pdfSetFill(1, 1, 1);
+            $page .= $this->pdfRect(0, 0, $pageWidth, $pageHeight, 'f');
+            $page .= $this->pdfSetFill($primary[0], $primary[1], $primary[2]);
+            $page .= $this->pdfRect($left, 780, 18, 18, 'f');
+            $page .= $this->pdfTextAt('M1', $left + 4, 786, 8, 'F2', [1, 1, 1]);
+            $page .= $this->pdfTextAt('MadukaOne', $left + 25, 789, 10, 'F2', $dark);
+            $page .= $this->pdfTextAt('Tickets exportes - suite', $left, 748, 16, 'F2', $dark);
+            $page .= $this->pdfTextAt($periodDisplay, $left, 730, 8, 'F1', $muted);
+
+            $ticketRows = [];
+            foreach ($salesPage as $sale) {
+                $ticketRows[] = [
+                    (string) ($sale['numero_facture'] ?? '-'),
+                    (string) ($sale['customer_name'] ?? 'Client comptant'),
+                    $this->money((float) ($sale['total_montant'] ?? 0)),
+                    (string) ($sale['statut'] ?? '-'),
+                ];
+            }
+            $page .= $this->pdfTable($left, 700, $contentWidth, ['FACTURE', 'CLIENT', 'TOTAL', 'STATUT'], $ticketRows, [0.30, 0.30, 0.22, 0.18], 24);
+            $page .= $this->pdfLine($left, $footerY + 16, $right, $footerY + 16, $border);
+            $page .= $this->pdfTextAt('MadukaOne - Historique des ventes genere automatiquement', $left, $footerY, 7, 'F1', $muted);
+            $page .= $this->pdfTextAt('Page ' . $pageNumber, $right - 35, $footerY, 7, 'F1', $muted);
+            $streams[] = $page;
+            $pageNumber++;
+        }
+
+        return $this->pdfFromContentStreams($streams);
     }
 
     private function xlsxContentTypes(): string

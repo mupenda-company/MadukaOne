@@ -20,20 +20,26 @@ $parseDate = static function ($value): ?DateTimeImmutable {
     return $date instanceof DateTimeImmutable ? $date : null;
 };
 $formatDate = static fn (?DateTimeImmutable $date): string => $date instanceof DateTimeImmutable ? $date->format('d/m/Y') : '-';
-$formatProductMoney = static function (array $product, string $type): string {
+$formatProductMoney = static function (array $product, string $type) use ($exchangeRate): string {
     $usdField = $type === 'purchase' ? 'prix_achat' : 'prix_vente';
     $amountField = $type === 'purchase' ? 'prix_achat_montant' : 'prix_vente_montant';
     $currencyField = $type === 'purchase' ? 'prix_achat_devise' : 'prix_vente_devise';
     $currency = in_array(($product[$currencyField] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product[$currencyField] : 'USD';
     $amount = (float) ($product[$amountField] ?? $product[$usdField] ?? 0);
     $usd = (float) ($product[$usdField] ?? 0);
-    $main = number_format($amount, 2, ',', ' ') . ' ' . $currency;
+    $rate = max($exchangeRate, 0.0001);
+    $formatted = static function (float $value, string $moneyCurrency): string {
+        $decimals = $moneyCurrency === 'CDF' ? 0 : 2;
+
+        return number_format($value, $decimals, ',', ' ') . ' ' . $moneyCurrency;
+    };
+    $main = $formatted($amount, $currency);
 
     if ($currency === 'USD') {
-        return $main;
+        return $main . '<span class="mt-1 block text-xs font-medium text-slate-500">' . $formatted($amount * $rate, 'CDF') . '</span>';
     }
 
-    return $main . '<span class="mt-1 block text-xs font-medium text-slate-500">' . number_format($usd, 2, ',', ' ') . ' USD</span>';
+    return $main . '<span class="mt-1 block text-xs font-medium text-slate-500">' . $formatted($usd, 'USD') . '</span>';
 };
 $expirationAlerts = count(array_filter($products, static function (array $product) use ($parseDate, $today, $expirationLimit): bool {
     if ((int) ($product['actif'] ?? 1) !== 1) {

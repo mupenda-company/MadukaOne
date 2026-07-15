@@ -48,13 +48,14 @@ class SupplyController extends AppController
             'activeMenu' => 'supplies',
             'suppliers' => $this->suppliers($shopId),
             'products' => $this->products($shopId),
+            'nextArrivalNumber' => $this->supplies->nextArrivalNumber(),
             'selectedSupplierId' => (int) ($_GET['supplier_id'] ?? 0),
         ]);
     }
 
     public function store(array $params = []): void
     {
-        $data = $this->payload();
+        $data = $this->payload(generateArrivalNumber: true);
         $errors = $this->validateArrival($data);
 
         if ($errors !== []) {
@@ -118,8 +119,8 @@ class SupplyController extends AppController
     public function update(array $params = []): void
     {
         $id = $this->supplyIdFromParams($params);
-        $data = $this->payload();
-        $errors = $this->validateArrival($data);
+        $data = $this->payload(generateArrivalNumber: false);
+        $errors = $this->validateArrival($data, $id, requireArrivalNumber: false);
 
         if ($errors !== []) {
             $this->flashError($this->firstError($errors));
@@ -150,11 +151,11 @@ class SupplyController extends AppController
         }
     }
 
-    private function payload(): array
+    private function payload(bool $generateArrivalNumber): array
     {
         return [
             'supplier_id' => $_POST['supplier_id'] ?? null,
-            'numero_arrivage' => $_POST['numero_arrivage'] ?? '',
+            'numero_arrivage' => $generateArrivalNumber ? $this->supplies->nextArrivalNumber() : null,
             'date_approvisionnement' => $this->dateTimeValue($_POST['date_approvisionnement'] ?? null),
             'items' => $this->itemsPayload($_POST),
         ];
@@ -169,31 +170,55 @@ class SupplyController extends AppController
         $productIds = is_array($post['product_id'] ?? null) ? $post['product_id'] : [];
         $quantities = is_array($post['quantite'] ?? null) ? $post['quantite'] : [];
         $prices = is_array($post['prix_achat_facture'] ?? null) ? $post['prix_achat_facture'] : [];
+        $currencies = is_array($post['devise_saisie'] ?? null) ? $post['devise_saisie'] : [];
         $items = [];
+        $shop = $this->activeShop($this->shops(), $this->currentUser());
+        $exchangeRate = (float) (($shop['taux_change_cdf'] ?? 2800) ?: 2800);
 
         foreach ($productIds as $index => $productId) {
+            $enteredAmount = is_numeric($prices[$index] ?? null) ? round((float) $prices[$index], 2) : 0.0;
+            $currency = in_array(($currencies[$index] ?? null), ['USD', 'CDF'], true) ? (string) $currencies[$index] : (string) ($shop['devise_principale'] ?? 'USD');
             $items[] = [
                 'product_id' => $productId,
                 'quantite' => $quantities[$index] ?? null,
-                'prix_achat_facture' => $prices[$index] ?? null,
+                'prix_achat_facture' => $this->amountToUsd($enteredAmount, $currency, $exchangeRate),
+                'prix_achat_saisi' => $enteredAmount,
+                'devise_saisie' => $currency,
+                'taux_change_saisie' => $exchangeRate,
             ];
         }
 
         return $items;
     }
 
-    private function validateArrival(array $data): array
+    private function amountToUsd(float $amount, string $currency, float $exchangeRate): float
+    {
+        if ($currency === 'CDF') {
+            return round($amount / max($exchangeRate, 0.0001), 2);
+        }
+
+        return round($amount, 2);
+    }
+
+    private function validateArrival(array $data, ?int $excludeId = null, bool $requireArrivalNumber = true): array
     {
         $validator = Validator::make($data)
             ->required('supplier_id', 'Fournisseur')
-            ->integerPositiveOrZero('supplier_id', 'Fournisseur')
-            ->required('numero_arrivage', 'Numéro d’arrivage')
-            ->maxLength('numero_arrivage', 50, 'Numéro d’arrivage');
+            ->integerPositiveOrZero('supplier_id', 'Fournisseur');
+        if ($requireArrivalNumber) {
+            $validator
+                ->required('numero_arrivage', 'Numero d arrivage')
+                ->maxLength('numero_arrivage', 50, 'Numero d arrivage');
+        }
 
         $errors = $validator->errors();
 
         if ((int) ($data['supplier_id'] ?? 0) <= 0) {
             $errors['supplier_id'][] = 'Fournisseur invalide.';
+        }
+
+        if ($requireArrivalNumber && !isset($errors['numero_arrivage']) && $this->supplies->arrivalNumberExists((string) ($data['numero_arrivage'] ?? ''), $excludeId)) {
+            $errors['numero_arrivage'][] = 'Ce numero d arrivage existe deja. Utilisez le prochain numero propose.';
         }
 
         if ($data['items'] === []) {
@@ -232,7 +257,7 @@ class SupplyController extends AppController
     {
         $activeClause = $activeOnly ? ' AND actif = 1' : '';
         $statement = Database::connection()->prepare(
-            'SELECT id, nom, ref, prix_achat FROM products WHERE shop_id = :shop_id' . $activeClause . ' ORDER BY nom ASC'
+            'SELECT id, nom, ref, prix_achat, quantite_stock FROM products WHERE shop_id = :shop_id' . $activeClause . ' ORDER BY nom ASC'
         );
         $statement->execute(['shop_id' => $shopId]);
 

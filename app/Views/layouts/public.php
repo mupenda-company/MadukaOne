@@ -6,8 +6,9 @@ $pageDescription = (string) ($pageDescription ?? '');
 $activePublicPage = (string) ($activePublicPage ?? '');
 $publicNav = [
     ['key' => 'home', 'label' => 'Accueil', 'href' => $url('/')],
-    ['key' => 'privacy', 'label' => 'Confidentialité', 'href' => $url('/privacy')],
-    ['key' => 'terms', 'label' => 'Conditions', 'href' => $url('/terms')],
+    ['key' => 'modules', 'label' => 'Modules', 'href' => $url('/') . '#modules'],
+    ['key' => 'workflow', 'label' => 'Fonctionnement', 'href' => $url('/') . '#workflow'],
+    ['key' => 'plans', 'label' => 'Abonnements', 'href' => $url('/') . '#plans'],
 ];
 ?>
 <!doctype html>
@@ -21,9 +22,9 @@ $publicNav = [
     <link rel="stylesheet" href="<?= $asset('assets/css/app.css') ?>?v=<?= (int) filemtime(dirname(__DIR__, 3) . '/public/assets/css/app.css') ?>">
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-950 antialiased">
-    <div class="public-shell">
+    <div class="public-shell" data-public-shell>
         <header class="public-nav">
-            <a class="public-brand" href="<?= $url('/') ?>" aria-label="MadukaOne accueil">
+            <a class="public-brand" href="<?= $url('/') ?>" aria-label="MadukaOne accueil" data-public-nav-link="home">
                 <span class="public-brand-mark">M1</span>
                 <span>
                     <span class="block text-sm font-black leading-5 text-white">MadukaOne</span>
@@ -33,7 +34,7 @@ $publicNav = [
 
             <nav class="hidden items-center gap-1 lg:flex" aria-label="Navigation publique">
                 <?php foreach ($publicNav as $item): ?>
-                    <a class="public-nav-link <?= $activePublicPage === $item['key'] ? 'is-active' : '' ?>" href="<?= $item['href'] ?>">
+                    <a class="public-nav-link <?= $activePublicPage === $item['key'] ? 'is-active' : '' ?>" href="<?= $item['href'] ?>" data-public-nav-link="<?= htmlspecialchars($item['key'], ENT_QUOTES, 'UTF-8') ?>">
                         <?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?>
                     </a>
                 <?php endforeach; ?>
@@ -41,9 +42,35 @@ $publicNav = [
 
             <div class="flex items-center gap-2">
                 <a class="public-login-link" href="<?= $url('/login') ?>">Connexion</a>
-                <a class="public-cta" href="<?= $url('/login') ?>">Accéder</a>
+                <a class="public-cta hidden sm:inline-flex" href="<?= $url('/login') ?>">Accéder</a>
+                <button class="public-menu-button" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="public-mobile-menu" data-public-menu-toggle>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
             </div>
         </header>
+
+        <div class="public-mobile-overlay" data-public-menu-close></div>
+        <nav id="public-mobile-menu" class="public-mobile-menu" aria-label="Navigation mobile">
+            <div class="public-mobile-menu-head">
+                <div>
+                    <span>MadukaOne</span>
+                    <strong>Menu</strong>
+                </div>
+                <button type="button" aria-label="Fermer le menu" data-public-menu-close>×</button>
+            </div>
+
+            <div class="public-mobile-menu-links">
+                <?php foreach ($publicNav as $item): ?>
+                    <a class="public-mobile-link <?= $activePublicPage === $item['key'] ? 'is-active' : '' ?>" href="<?= $item['href'] ?>" data-public-nav-link="<?= htmlspecialchars($item['key'], ENT_QUOTES, 'UTF-8') ?>" data-public-menu-close>
+                        <?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+
+            <a class="public-mobile-cta" href="<?= $url('/login') ?>">Se connecter</a>
+        </nav>
 
         <main>
             <?= $content ?? '' ?>
@@ -67,7 +94,7 @@ $publicNav = [
                 <div class="grid gap-3 text-sm font-semibold text-white/70 sm:grid-cols-3 lg:justify-items-end">
                     <a class="transition hover:text-white" href="<?= $url('/') ?>">Accueil</a>
                     <a class="transition hover:text-white" href="<?= $url('/privacy') ?>">Politique de confidentialité</a>
-                    <a class="transition hover:text-white" href="<?= $url('/terms') ?>">Conditions d’utilisation</a>
+                    <a class="transition hover:text-white" href="<?= $url('/terms') ?>">Conditions d'utilisation</a>
                 </div>
             </div>
             <div class="mt-8 border-t border-white/10 pt-5 text-xs font-semibold text-white/45">
@@ -92,6 +119,60 @@ $publicNav = [
             revealItems.forEach((item) => observer.observe(item));
         } else {
             revealItems.forEach((item) => item.classList.add('is-visible'));
+        }
+
+        const publicShell = document.querySelector('[data-public-shell]');
+        const publicMenuToggle = document.querySelector('[data-public-menu-toggle]');
+        const publicMenuClosers = document.querySelectorAll('[data-public-menu-close]');
+
+        const setPublicMenuOpen = (isOpen) => {
+            publicShell?.classList.toggle('is-public-menu-open', isOpen);
+            publicMenuToggle?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            document.body.classList.toggle('overflow-hidden', isOpen);
+        };
+
+        publicMenuToggle?.addEventListener('click', () => {
+            setPublicMenuOpen(!publicShell?.classList.contains('is-public-menu-open'));
+        });
+
+        publicMenuClosers.forEach((item) => {
+            item.addEventListener('click', () => setPublicMenuOpen(false));
+        });
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                setPublicMenuOpen(false);
+            }
+        });
+
+        const sectionLinks = document.querySelectorAll('[data-public-nav-link]');
+        const trackedSections = ['modules', 'workflow', 'plans']
+            .map((id) => document.getElementById(id))
+            .filter(Boolean);
+
+        const setActivePublicLink = (key) => {
+            sectionLinks.forEach((link) => {
+                link.classList.toggle('is-active', link.dataset.publicNavLink === key);
+            });
+        };
+
+        const updateActivePublicLink = () => {
+            let activeKey = 'home';
+            const triggerLine = window.scrollY + 150;
+
+            trackedSections.forEach((section) => {
+                if (section.offsetTop <= triggerLine) {
+                    activeKey = section.id;
+                }
+            });
+
+            setActivePublicLink(activeKey);
+        };
+
+        if (sectionLinks.length > 0 && trackedSections.length > 0) {
+            updateActivePublicLink();
+            window.addEventListener('scroll', updateActivePublicLink, { passive: true });
+            window.addEventListener('hashchange', updateActivePublicLink);
         }
     </script>
 </body>

@@ -104,17 +104,19 @@ final class Router
             throw new InvalidArgumentException('Controller action must use Controller@method format.');
         }
 
-        $controllerFile = dirname(__DIR__) . '/Controllers/' . $controllerName . '.php';
+        $controllerPath = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $controllerName);
+        $controllerFile = dirname(__DIR__) . '/Controllers/' . $controllerPath . '.php';
+        $className = basename($controllerPath);
 
         if (is_file($controllerFile)) {
             require_once $controllerFile;
         }
 
-        if (!class_exists($controllerName)) {
+        if (!class_exists($className)) {
             throw new RuntimeException("Controller [{$controllerName}] not found.");
         }
 
-        $controller = new $controllerName();
+        $controller = new $className();
 
         if (!method_exists($controller, $method)) {
             throw new RuntimeException("Action [{$controllerName}@{$method}] not found.");

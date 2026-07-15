@@ -10,6 +10,8 @@ $purchaseCurrency = in_array(($product['prix_achat_devise'] ?? 'USD'), ['USD', '
 $saleCurrency = in_array(($product['prix_vente_devise'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $product['prix_vente_devise'] : 'USD';
 $purchaseAmount = (float) ($product['prix_achat_montant'] ?? $purchasePrice);
 $saleAmount = (float) ($product['prix_vente_montant'] ?? $salePrice);
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $margin = $salePrice - $purchasePrice;
 $isActive = (int) ($product['actif'] ?? 1) === 1;
 
@@ -49,14 +51,20 @@ if ($expiresAt instanceof DateTimeImmutable) {
 }
 
 $formatMoney = static fn (float $value): string => number_format($value, 2, ',', ' ') . ' USD';
-$formatChosenMoney = static function (float $amount, string $currency, float $usd) use ($formatMoney): string {
-    $main = number_format($amount, 2, ',', ' ') . ' ' . $currency;
+$formatChosenMoney = static function (float $amount, string $currency, float $usd) use ($exchangeRate): string {
+    $rate = max($exchangeRate, 0.0001);
+    $formatted = static function (float $value, string $moneyCurrency): string {
+        $decimals = $moneyCurrency === 'CDF' ? 0 : 2;
+
+        return number_format($value, $decimals, ',', ' ') . ' ' . $moneyCurrency;
+    };
+    $main = $formatted($amount, $currency);
 
     if ($currency === 'USD') {
-        return $main;
+        return $main . '<span class="mt-1 block text-sm font-semibold text-slate-500">' . $formatted($amount * $rate, 'CDF') . '</span>';
     }
 
-    return $main . '<span class="mt-1 block text-sm font-semibold text-slate-500">' . $formatMoney($usd) . '</span>';
+    return $main . '<span class="mt-1 block text-sm font-semibold text-slate-500">' . $formatted($usd, 'USD') . '</span>';
 };
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 

@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/Database.php';
+require_once dirname(__DIR__) . '/Models/Role.php';
 require_once dirname(__DIR__) . '/Models/User.php';
 
 class UserController
 {
+    private Role $roles;
     private User $users;
 
     public function __construct()
     {
+        $this->roles = new Role();
         $this->users = new User();
     }
 
@@ -70,6 +73,11 @@ class UserController
 
             if ($nom === '' || $prenom === '' || $roleId < 1 || $shopId < 1) {
                 $this->flashError('Veuillez renseigner le prenom, le nom et le role.');
+                $this->redirect('/users/create');
+            }
+
+            if (!$this->roles->isAssignableInShop($roleId)) {
+                $this->flashError('Ce role est reserve a l espace SaaS et ne peut pas etre attribue dans une boutique.');
                 $this->redirect('/users/create');
             }
 
@@ -148,6 +156,11 @@ class UserController
 
             if ($nom === '' || $prenom === '' || $roleId < 1 || $targetShopId < 1) {
                 $this->flashError('Veuillez renseigner le prenom, le nom, la boutique et le role.');
+                $this->redirect('/admin/users/edit/' . $id);
+            }
+
+            if (!$this->roles->isAssignableInShop($roleId)) {
+                $this->flashError('Ce role est reserve a l espace SaaS et ne peut pas etre attribue dans une boutique.');
                 $this->redirect('/admin/users/edit/' . $id);
             }
 

@@ -43,7 +43,10 @@ final class Middleware
         self::sendNoStoreHeaders();
 
         if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
-            self::ensureAuthenticatedUserIsFresh();
+            if (self::isSaasAdmin()) {
+                self::redirect('/saas-admin');
+            }
+
             self::redirect(self::isAgent() ? '/pos' : '/dashboard');
         }
     }
@@ -54,6 +57,16 @@ final class Middleware
 
         if (!self::isAdmin()) {
             self::denyAgent();
+        }
+    }
+
+    public static function saasAdmin(string $path, string $method, array $params = []): void
+    {
+        self::auth($path, $method, $params);
+
+        if (!self::isSaasAdmin()) {
+            $_SESSION['flash_error'] = 'Acces refuse : cette administration est reservee aux super administrateurs Maduka One.';
+            self::redirect('/dashboard', 403);
         }
     }
 
@@ -80,6 +93,51 @@ final class Middleware
     private static function isAgent(): bool
     {
         return self::currentRole() === 'agent';
+    }
+
+    private static function isSaasAdmin(): bool
+    {
+        self::startSession();
+
+        $user = $_SESSION['user'] ?? null;
+
+        if (!is_array($user)) {
+            return false;
+        }
+
+        return self::isSaasAdminFromDatabase((int) ($user['id'] ?? 0));
+    }
+
+    private static function isSaasAdminFromDatabase(int $userId): bool
+    {
+        if ($userId < 1) {
+            return false;
+        }
+
+        try {
+            require_once __DIR__ . '/Database.php';
+
+            $statement = Database::connection()->prepare(
+                'SELECT users.role_id, users.shop_id, users.role_legacy, roles.nom AS role_name
+                 FROM users
+                 LEFT JOIN roles ON roles.id = users.role_id
+                 WHERE users.id = :id AND users.actif = 1
+                 LIMIT 1'
+            );
+            $statement->execute(['id' => $userId]);
+            $user = $statement->fetch();
+
+            if (!is_array($user)) {
+                return false;
+            }
+
+            $roleName = strtolower(trim((string) ($user['role_name'] ?? '')));
+            $roleName = str_replace(['-', ' '], '_', $roleName);
+
+            return in_array($roleName, ['super_admin', 'super_administrateur'], true);
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private static function currentRole(): ?string

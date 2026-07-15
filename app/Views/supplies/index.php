@@ -1,6 +1,8 @@
 <?php
 
 $supplies = is_array($supplies ?? null) ? $supplies : [];
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $pagination = is_array($pagination ?? null) ? $pagination : [
     'current_page' => 1,
     'total_items' => count($supplies),
@@ -9,7 +11,28 @@ $pagination = is_array($pagination ?? null) ? $pagination : [
     'to' => count($supplies),
 ];
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$money = static function ($value) use ($exchangeRate): string {
+    $usd = (float) $value;
+    return number_format($usd, 2, ',', ' ') . ' USD (' . number_format($usd * $exchangeRate, 2, ',', ' ') . ' CDF)';
+};
+$supplyMoney = static function (array $supply) use ($money, $exchangeRate): string {
+    $usdEntered = (float) ($supply['entered_total_usd'] ?? 0);
+    $cdfEntered = (float) ($supply['entered_total_cdf'] ?? 0);
+
+    if ($cdfEntered > 0 && $usdEntered <= 0) {
+        return number_format($cdfEntered, 2, ',', ' ') . ' CDF ('
+            . number_format($cdfEntered / max($exchangeRate, 0.0001), 2, ',', ' ')
+            . ' USD)';
+    }
+
+    if ($usdEntered > 0 && $cdfEntered <= 0) {
+        return number_format($usdEntered, 2, ',', ' ') . ' USD ('
+            . number_format($usdEntered * $exchangeRate, 2, ',', ' ')
+            . ' CDF)';
+    }
+
+    return $money($supply['total_facture'] ?? 0);
+};
 $dateLabel = static function ($value): string {
     $timestamp = strtotime((string) ($value ?? ''));
     return $timestamp !== false ? date('d/m/Y H:i', $timestamp) : '-';
@@ -87,7 +110,7 @@ $icon = static function (string $name): string {
                             <td class="px-4 py-4 text-slate-700" data-label="Lignes">
                                 <?= (int) ($supply['lines_count'] ?? 0) ?> ligne(s), <?= (int) ($supply['total_units'] ?? 0) ?> unité(s)
                             </td>
-                            <td class="px-4 py-4 font-bold text-slate-950" data-label="Total"><?= $money($supply['total_facture'] ?? 0) ?></td>
+                            <td class="px-4 py-4 font-bold text-slate-950" data-label="Total"><?= $supplyMoney($supply) ?></td>
                             <td class="px-4 py-4" data-label="Statut">
                                 <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold <?= $statusClass($status) ?>"><?= $statusLabel($status) ?></span>
                             </td>

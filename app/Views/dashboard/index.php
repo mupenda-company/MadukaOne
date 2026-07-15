@@ -17,6 +17,22 @@ $money = static function ($value) use ($dashboardCurrency, $exchangeRate): strin
 
     return $dashboardCurrency === 'CDF' ? $cdf . ' (' . $usd . ')' : $usd . ' (' . $cdf . ')';
 };
+$moneyParts = static function ($value) use ($dashboardCurrency, $exchangeRate): array {
+    $amount = (float) $value;
+    $usd = number_format($amount, 2, ',', ' ') . ' USD';
+    $cdf = number_format($amount * $exchangeRate, 2, ',', ' ') . ' CDF';
+
+    return $dashboardCurrency === 'CDF'
+        ? ['primary' => $cdf, 'secondary' => $usd]
+        : ['primary' => $usd, 'secondary' => $cdf];
+};
+$dashboardStatAmounts = [
+    0 => (float) ($summary['today_revenue'] ?? 0),
+    1 => (float) ($summary['revenue'] ?? 0),
+    2 => (float) ($summary['gross_margin'] ?? 0),
+    3 => (float) ($summary['expenses'] ?? 0),
+    4 => (float) ($summary['net_profit'] ?? 0),
+];
 $statToneClasses = [
     'teal' => 'border-teal-100 bg-teal-50 text-teal-700',
     'blue' => 'border-blue-100 bg-blue-50 text-blue-700',
@@ -53,14 +69,22 @@ $statToneClasses = [
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <?php foreach ($stats as $stat): ?>
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <?php foreach ($stats as $index => $stat): ?>
             <?php $toneClass = $statToneClasses[$stat['tone'] ?? 'slate'] ?? $statToneClasses['slate']; ?>
             <article class="stat-card">
                 <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0">
                         <p class="text-sm font-medium leading-5 text-slate-500"><?= $safe($stat['label'] ?? '-') ?></p>
-                        <p class="mt-3 break-words text-xl font-semibold tracking-normal text-slate-950 sm:text-2xl"><?= $safe($stat['value'] ?? '0') ?></p>
+                        <?php if (array_key_exists($index, $dashboardStatAmounts)): ?>
+                            <?php $parts = $moneyParts($dashboardStatAmounts[$index]); ?>
+                            <div class="dashboard-money mt-3">
+                                <p class="dashboard-money-primary"><?= $safe($parts['primary']) ?></p>
+                                <p class="dashboard-money-secondary"><?= $safe($parts['secondary']) ?></p>
+                            </div>
+                        <?php else: ?>
+                            <p class="mt-3 text-3xl font-black leading-none tracking-normal text-slate-950"><?= $safe($stat['value'] ?? '0') ?></p>
+                        <?php endif; ?>
                     </div>
                     <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg border <?= $toneClass ?>">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -117,13 +141,21 @@ $statToneClasses = [
             </div>
 
             <div class="mt-5 space-y-3">
-                <?php foreach ($recentSignals as $signal): ?>
+                <?php foreach ($recentSignals as $signalIndex => $signal): ?>
                     <div class="signal-row flex-col items-start sm:flex-row sm:items-center">
                         <div class="min-w-0">
                             <p class="text-sm font-semibold text-slate-900"><?= $safe($signal['label'] ?? '-') ?></p>
                             <p class="mt-1 text-xs text-slate-500"><?= $safe($signal['hint'] ?? '') ?></p>
                         </div>
-                        <span class="shrink-0 text-sm font-bold text-slate-950 sm:text-right"><?= $safe($signal['value'] ?? '0') ?></span>
+                        <?php if ($signalIndex === 2): ?>
+                            <?php $debtParts = $moneyParts((float) ($summary['customer_debt'] ?? 0)); ?>
+                            <span class="dashboard-signal-money">
+                                <strong><?= $safe($debtParts['primary']) ?></strong>
+                                <small><?= $safe($debtParts['secondary']) ?></small>
+                            </span>
+                        <?php else: ?>
+                            <span class="shrink-0 text-sm font-bold text-slate-950 sm:text-right"><?= $safe($signal['value'] ?? '0') ?></span>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>

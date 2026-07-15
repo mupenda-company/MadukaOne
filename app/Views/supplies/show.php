@@ -2,11 +2,37 @@
 
 $supply = is_array($supply ?? null) ? $supply : [];
 $details = is_array($details ?? null) ? $details : [];
+$activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $supplyId = (int) ($supply['id'] ?? 0);
 $status = (string) ($supply['statut'] ?? '');
 $isCancelled = $status === 'annule';
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
-$money = static fn ($value): string => number_format((float) $value, 2, ',', ' ') . ' USD';
+$money = static function ($value) use ($exchangeRate): string {
+    $usd = (float) $value;
+    return number_format($usd, 2, ',', ' ') . ' USD (' . number_format($usd * $exchangeRate, 2, ',', ' ') . ' CDF)';
+};
+$detailMoney = static function (array $detail, string $field, string $fallbackField) use ($money): string {
+    $enteredAmount = $detail[$field] ?? null;
+    $enteredCurrency = (string) ($detail['devise_saisie'] ?? 'USD');
+    $enteredRate = (float) (($detail['taux_change_saisie'] ?? 2800) ?: 2800);
+
+    if ($enteredAmount === null || !in_array($enteredCurrency, ['USD', 'CDF'], true)) {
+        return $money($detail[$fallbackField] ?? 0);
+    }
+
+    $enteredAmount = (float) $enteredAmount;
+
+    if ($enteredCurrency === 'CDF') {
+        return number_format($enteredAmount, 2, ',', ' ') . ' CDF ('
+            . number_format($enteredAmount / max($enteredRate, 0.0001), 2, ',', ' ')
+            . ' USD)';
+    }
+
+    return number_format($enteredAmount, 2, ',', ' ') . ' USD ('
+        . number_format($enteredAmount * $enteredRate, 2, ',', ' ')
+        . ' CDF)';
+};
 $dateLabel = static function ($value): string {
     $timestamp = strtotime((string) ($value ?? ''));
     return $timestamp !== false ? date('d/m/Y H:i', $timestamp) : '-';
@@ -73,8 +99,8 @@ $icon = static function (string $name): string {
                                     <p class="mt-1 text-xs text-slate-500"><?= $safe($detail['product_ref'] ?? 'Sans référence') ?></p>
                                 </td>
                                 <td class="px-4 py-4 font-bold" data-label="Quantité"><?= (int) ($detail['quantite'] ?? 0) ?></td>
-                                <td class="px-4 py-4" data-label="Prix achat"><?= $money($detail['prix_achat_facture'] ?? 0) ?></td>
-                                <td class="px-4 py-4 font-bold text-slate-950" data-label="Total ligne"><?= $money($detail['total_ligne'] ?? 0) ?></td>
+                                <td class="px-4 py-4" data-label="Prix achat"><?= $detailMoney($detail, 'prix_achat_saisi', 'prix_achat_facture') ?></td>
+                                <td class="px-4 py-4 font-bold text-slate-950" data-label="Total ligne"><?= $detailMoney($detail, 'total_ligne_saisi', 'total_ligne') ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

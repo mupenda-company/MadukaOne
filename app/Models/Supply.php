@@ -24,12 +24,20 @@ final class Supply extends Model
                     suppliers.nom AS supplier_name,
                     users.nom AS user_name,
                     COALESCE(detail_totals.lines_count, 0) AS lines_count,
-                    COALESCE(detail_totals.total_units, 0) AS total_units
+                    COALESCE(detail_totals.total_units, 0) AS total_units,
+                    COALESCE(detail_totals.entered_total_usd, 0) AS entered_total_usd,
+                    COALESCE(detail_totals.entered_total_cdf, 0) AS entered_total_cdf,
+                    COALESCE(detail_totals.entered_currencies_count, 0) AS entered_currencies_count
              FROM supplies
              INNER JOIN suppliers ON suppliers.id = supplies.supplier_id
              INNER JOIN users ON users.id = supplies.user_id
              LEFT JOIN (
-                SELECT supply_id, COUNT(*) AS lines_count, COALESCE(SUM(quantite), 0) AS total_units
+                SELECT supply_id,
+                       COUNT(*) AS lines_count,
+                       COALESCE(SUM(quantite), 0) AS total_units,
+                       COALESCE(SUM(CASE WHEN devise_saisie = "USD" THEN total_ligne_saisi ELSE 0 END), 0) AS entered_total_usd,
+                       COALESCE(SUM(CASE WHEN devise_saisie = "CDF" THEN total_ligne_saisi ELSE 0 END), 0) AS entered_total_cdf,
+                       COUNT(DISTINCT devise_saisie) AS entered_currencies_count
                 FROM supply_details
                 GROUP BY supply_id
              ) detail_totals ON detail_totals.supply_id = supplies.id
@@ -48,6 +56,50 @@ final class Supply extends Model
         $statement->execute(['shop_id' => $shopId]);
 
         return (int) $statement->fetchColumn();
+    }
+
+    public function nextArrivalNumber(?DateTimeInterface $date = null): string
+    {
+        $date ??= new DateTimeImmutable('now');
+        $prefix = 'ARR-' . $date->format('Ymd') . '-';
+        $statement = Database::connection()->prepare(
+            'SELECT numero_arrivage
+             FROM supplies
+             WHERE numero_arrivage LIKE :prefix
+             ORDER BY numero_arrivage DESC
+             LIMIT 1'
+        );
+        $statement->execute(['prefix' => $prefix . '%']);
+        $lastNumber = (string) ($statement->fetchColumn() ?: '');
+        $nextSequence = 1;
+
+        if (preg_match('/^' . preg_quote($prefix, '/') . '(\d+)$/', $lastNumber, $matches) === 1) {
+            $nextSequence = (int) $matches[1] + 1;
+        }
+
+        return $prefix . str_pad((string) $nextSequence, 3, '0', STR_PAD_LEFT);
+    }
+
+    public function arrivalNumberExists(string $number, ?int $excludeId = null): bool
+    {
+        $number = trim($number);
+
+        if ($number === '') {
+            return false;
+        }
+
+        $sql = 'SELECT COUNT(*) FROM supplies WHERE numero_arrivage = :numero_arrivage';
+        $params = ['numero_arrivage' => $number];
+
+        if ($excludeId !== null) {
+            $sql .= ' AND id <> :exclude_id';
+            $params['exclude_id'] = $excludeId;
+        }
+
+        $statement = Database::connection()->prepare($sql);
+        $statement->execute($params);
+
+        return (int) $statement->fetchColumn() > 0;
     }
 
     public function findByShop(int $id, int $shopId): ?array
@@ -111,7 +163,16 @@ final class Supply extends Model
                 $stockBefore = (int) $product['quantite_stock'];
                 $stockAfter = $stockBefore + $quantity;
 
-                $this->details->insert($db, $supplyId, (int) $product['id'], $quantity, $purchasePrice);
+                $this->details->insert(
+                    $db,
+                    $supplyId,
+                    (int) $product['id'],
+                    $quantity,
+                    $purchasePrice,
+                    (float) ($item['prix_achat_saisi'] ?? $purchasePrice),
+                    (string) ($item['devise_saisie'] ?? 'USD'),
+                    (float) ($item['taux_change_saisie'] ?? 2800)
+                );
                 $this->insertStockMovement(
                     db: $db,
                     shopId: $shopId,
@@ -122,7 +183,16 @@ final class Supply extends Model
                     stockBefore: $stockBefore,
                     stockAfter: $stockAfter
                 );
-                $this->updateProductStockAndPurchasePrice($db, (int) $product['id'], $shopId, $stockAfter, $purchasePrice, $userId);
+                $this->updateProductStockAndPurchasePrice(
+                    $db,
+                    (int) $product['id'],
+                    $shopId,
+                    $stockAfter,
+                    $purchasePrice,
+                    (float) ($item['prix_achat_saisi'] ?? $purchasePrice),
+                    (string) ($item['devise_saisie'] ?? 'USD'),
+                    $userId
+                );
             }
 
             $database->disableStockUpdate();
@@ -350,14 +420,17 @@ final class Supply extends Model
         int $shopId,
         int $stockAfter,
         float $purchasePrice,
+        float $enteredPurchasePrice,
+        string $enteredCurrency,
         int $userId
     ): void {
+        $enteredCurrency = in_array($enteredCurrency, ['USD', 'CDF'], true) ? $enteredCurrency : 'USD';
         $statement = $db->prepare(
             "UPDATE products
              SET quantite_stock = :quantite_stock,
                  prix_achat = :prix_achat,
-                 prix_achat_devise = 'USD',
-                 prix_achat_montant = :prix_achat,
+                 prix_achat_devise = :prix_achat_devise,
+                 prix_achat_montant = :prix_achat_montant,
                  updated_by = :updated_by
              WHERE id = :id AND shop_id = :shop_id"
         );
@@ -365,6 +438,8 @@ final class Supply extends Model
         $statement->execute([
             'quantite_stock' => $stockAfter,
             'prix_achat' => $purchasePrice,
+            'prix_achat_devise' => $enteredCurrency,
+            'prix_achat_montant' => $enteredPurchasePrice,
             'updated_by' => $userId,
             'id' => $productId,
             'shop_id' => $shopId,
@@ -440,11 +515,17 @@ final class Supply extends Model
                     'product_id' => $productId,
                     'quantite' => 0,
                     'prix_achat_facture' => (float) ($item['prix_achat_facture'] ?? 0),
+                    'prix_achat_saisi' => (float) ($item['prix_achat_saisi'] ?? ($item['prix_achat_facture'] ?? 0)),
+                    'devise_saisie' => in_array(($item['devise_saisie'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $item['devise_saisie'] : 'USD',
+                    'taux_change_saisie' => max(0.0001, (float) ($item['taux_change_saisie'] ?? 2800)),
                 ];
             }
 
             $normalized[$productId]['quantite'] += (int) ($item['quantite'] ?? 0);
             $normalized[$productId]['prix_achat_facture'] = (float) ($item['prix_achat_facture'] ?? 0);
+            $normalized[$productId]['prix_achat_saisi'] = (float) ($item['prix_achat_saisi'] ?? ($item['prix_achat_facture'] ?? 0));
+            $normalized[$productId]['devise_saisie'] = in_array(($item['devise_saisie'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $item['devise_saisie'] : 'USD';
+            $normalized[$productId]['taux_change_saisie'] = max(0.0001, (float) ($item['taux_change_saisie'] ?? 2800));
         }
 
         return array_values($normalized);
@@ -455,7 +536,6 @@ final class Supply extends Model
         $statement = $db->prepare(
             'UPDATE supplies
              SET supplier_id = :supplier_id,
-                 numero_arrivage = :numero_arrivage,
                  date_approvisionnement = :date_approvisionnement,
                  total_facture = :total_facture
              WHERE id = :id AND shop_id = :shop_id'
@@ -463,7 +543,6 @@ final class Supply extends Model
 
         $statement->execute([
             'supplier_id' => (int) $data['supplier_id'],
-            'numero_arrivage' => trim((string) $data['numero_arrivage']),
             'date_approvisionnement' => $data['date_approvisionnement'] ?: date('Y-m-d H:i:s'),
             'total_facture' => $total,
             'id' => $id,
@@ -519,7 +598,15 @@ final class Supply extends Model
         }
 
         foreach ($newItems as $item) {
-            $this->updateProductPurchasePrice($db, (int) $item['product_id'], $shopId, (float) $item['prix_achat_facture'], $userId);
+            $this->updateProductPurchasePrice(
+                $db,
+                (int) $item['product_id'],
+                $shopId,
+                (float) $item['prix_achat_facture'],
+                (float) ($item['prix_achat_saisi'] ?? $item['prix_achat_facture']),
+                (string) ($item['devise_saisie'] ?? 'USD'),
+                $userId
+            );
         }
     }
 
@@ -529,23 +616,43 @@ final class Supply extends Model
         $delete->execute(['supply_id' => $supplyId]);
 
         foreach ($items as $item) {
-            $this->details->insert($db, $supplyId, (int) $item['product_id'], (int) $item['quantite'], (float) $item['prix_achat_facture']);
+            $this->details->insert(
+                $db,
+                $supplyId,
+                (int) $item['product_id'],
+                (int) $item['quantite'],
+                (float) $item['prix_achat_facture'],
+                (float) ($item['prix_achat_saisi'] ?? $item['prix_achat_facture']),
+                (string) ($item['devise_saisie'] ?? 'USD'),
+                (float) ($item['taux_change_saisie'] ?? 2800)
+            );
         }
     }
 
-    private function updateProductPurchasePrice(PDO $db, int $productId, int $shopId, float $purchasePrice, int $userId): void
+    private function updateProductPurchasePrice(
+        PDO $db,
+        int $productId,
+        int $shopId,
+        float $purchasePrice,
+        float $enteredPurchasePrice,
+        string $enteredCurrency,
+        int $userId
+    ): void
     {
+        $enteredCurrency = in_array($enteredCurrency, ['USD', 'CDF'], true) ? $enteredCurrency : 'USD';
         $statement = $db->prepare(
             "UPDATE products
              SET prix_achat = :prix_achat,
-                 prix_achat_devise = 'USD',
-                 prix_achat_montant = :prix_achat,
+                 prix_achat_devise = :prix_achat_devise,
+                 prix_achat_montant = :prix_achat_montant,
                  updated_by = :updated_by
              WHERE id = :id AND shop_id = :shop_id"
         );
 
         $statement->execute([
             'prix_achat' => $purchasePrice,
+            'prix_achat_devise' => $enteredCurrency,
+            'prix_achat_montant' => $enteredPurchasePrice,
             'updated_by' => $userId,
             'id' => $productId,
             'shop_id' => $shopId,
