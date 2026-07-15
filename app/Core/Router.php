@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 final class Router
 {
+    /** @var string|callable|null */
+    private mixed $storefrontAction = null;
+
     /**
      * @var array<string, array<int, array{path:string, pattern:string, action:string|callable, middlewares:array<int, string|callable>}>>
      */
@@ -41,6 +44,13 @@ final class Router
         return $this;
     }
 
+    public function storefront(string|callable $action): self
+    {
+        $this->storefrontAction = $action;
+
+        return $this;
+    }
+
     public function dispatch(): void
     {
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -65,6 +75,15 @@ final class Router
             $this->runMiddlewares($route['middlewares'], $path, $method, $params);
             $this->callAction($route['action'], $params);
 
+            return;
+        }
+
+        if (
+            $method === 'GET'
+            && $this->storefrontAction !== null
+            && preg_match('#^/(?P<slug>[a-z0-9](?:[a-z0-9-]{0,158}[a-z0-9])?)$#', $path, $matches) === 1
+        ) {
+            $this->callAction($this->storefrontAction, ['slug' => $matches['slug']]);
             return;
         }
 

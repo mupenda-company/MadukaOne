@@ -16,6 +16,10 @@ class DashboardController extends AppController
         $shopId = (int) $activeShop['id'];
         $summary = $this->summary($shopId);
         $monthlyTrend = $this->monthlyTrend($shopId);
+        $appConfig = require dirname(__DIR__, 2) . '/config/app.php';
+        $storefrontUrl = !empty($activeShop['slug'])
+            ? rtrim((string) ($appConfig['url'] ?? ''), '/') . '/' . rawurlencode((string) $activeShop['slug'])
+            : null;
 
         $stats = [
             [
@@ -73,6 +77,7 @@ class DashboardController extends AppController
             'stats' => $stats,
             'recentSignals' => $recentSignals,
             'monthlyTrend' => $monthlyTrend,
+            'storefrontUrl' => $storefrontUrl,
             'activeMenu' => 'dashboard',
         ]);
     }

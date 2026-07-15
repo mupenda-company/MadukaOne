@@ -58,6 +58,7 @@ class ShopController extends AppController
             'adresse' => $_POST['adresse'] ?? null,
             'telephone' => $_POST['telephone'] ?? null,
             'email' => $_POST['email'] ?? null,
+            'logo_url' => $_POST['logo_url'] ?? null,
             'devise_principale' => $_POST['devise_principale'] ?? 'USD',
             'taux_change_cdf' => $_POST['taux_change_cdf'] ?? 0,
         ];
@@ -99,6 +100,16 @@ class ShopController extends AppController
 
         if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             return 'L adresse email de la boutique est invalide.';
+        }
+
+        $logoUrl = trim((string) ($data['logo_url'] ?? ''));
+
+        if ($logoUrl !== '') {
+            $scheme = strtolower((string) parse_url($logoUrl, PHP_URL_SCHEME));
+
+            if (filter_var($logoUrl, FILTER_VALIDATE_URL) === false || !in_array($scheme, ['http', 'https'], true)) {
+                return 'L URL du logo doit etre une adresse HTTP ou HTTPS valide.';
+            }
         }
 
         return null;

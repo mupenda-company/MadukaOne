@@ -249,7 +249,7 @@ $faqs = [
                             <?php endforeach; ?>
                         </ul>
 
-                        <a href="<?= $url('/login') ?>">Commencer</a>
+                        <a href="<?= $url('/pricing') ?>">Commencer</a>
                     </article>
                 <?php endforeach; ?>
             </div>

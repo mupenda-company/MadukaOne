@@ -283,11 +283,13 @@ final class SaasAdminRepository extends Model
 
     public function createShop(array $data): int
     {
+        $payload = $this->shopPayload($data);
+        $payload['slug'] = $this->uniqueShopSlug((string) $payload['nom']);
         $statement = Database::connection()->prepare(
-            'INSERT INTO shops (category_id, nom, adresse, telephone, email, devise_principale, taux_change_cdf, actif)
-             VALUES (:category_id, :nom, :adresse, :telephone, :email, :devise_principale, :taux_change_cdf, :actif)'
+            'INSERT INTO shops (category_id, nom, slug, adresse, telephone, email, devise_principale, taux_change_cdf, actif)
+             VALUES (:category_id, :nom, :slug, :adresse, :telephone, :email, :devise_principale, :taux_change_cdf, :actif)'
         );
-        $statement->execute($this->shopPayload($data));
+        $statement->execute($payload);
 
         return (int) Database::connection()->lastInsertId();
     }
@@ -1163,6 +1165,37 @@ final class SaasAdminRepository extends Model
         $slug = trim($slug, '-');
 
         return $slug !== '' ? $slug : 'categorie-' . bin2hex(random_bytes(3));
+    }
+
+    private function uniqueShopSlug(string $name): string
+    {
+        $base = substr($this->slug($name), 0, 150);
+
+        if (in_array($base, [
+            'home', 'accueil', 'privacy', 'confidentialite', 'terms', 'conditions', 'pricing',
+            'register-store', 'dashboard', 'login', 'logout', 'activate', 'auth', 'saas-admin',
+            'shops', 'boutiques', 'products', 'pos', 'caisse', 'sales', 'ventes', 'customers',
+            'clients', 'roles', 'users', 'admin', 'supplies', 'suppliers', 'fournisseurs', 'stock',
+            'expenses', 'finances', 'reports', 'rapports', 'pharmacy', 'pharmacie', 'fashion',
+            'vetements', 'profil', 'profile', 'backup',
+        ], true)) {
+            $base = 'boutique-' . $base;
+        }
+
+        $candidate = $base;
+        $suffix = 2;
+        $statement = Database::connection()->prepare('SELECT COUNT(*) FROM shops WHERE slug = :slug');
+
+        while (true) {
+            $statement->execute(['slug' => $candidate]);
+
+            if ((int) $statement->fetchColumn() === 0) {
+                return $candidate;
+            }
+
+            $candidate = substr($base, 0, 150) . '-' . $suffix;
+            $suffix++;
+        }
     }
 
     private function featurePayload(array $data): array

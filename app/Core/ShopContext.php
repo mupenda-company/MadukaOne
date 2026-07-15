@@ -49,9 +49,11 @@ final class ShopContext
             $statement = Database::connection()->prepare(
                 'SELECT shops.id,
                         shops.nom,
+                        shops.slug,
                         shops.adresse,
                         shops.telephone,
                         shops.email,
+                        shops.logo_url,
                         shops.devise_principale,
                         shops.taux_change_cdf,
                         shops.actif,
@@ -143,9 +145,11 @@ final class ShopContext
         return [
             'id' => $shopId > 0 ? $shopId : 0,
             'nom' => 'Boutique active',
+            'slug' => null,
             'adresse' => null,
             'telephone' => null,
             'email' => null,
+            'logo_url' => null,
             'devise_principale' => 'USD',
             'taux_change_cdf' => 2800,
             'actif' => 1,

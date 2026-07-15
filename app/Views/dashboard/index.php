@@ -69,6 +69,27 @@ $statToneClasses = [
         </div>
     </div>
 
+    <section class="rounded-xl border border-teal-100 bg-teal-50/70 p-5 sm:p-6">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-[.16em] text-teal-700">Bienvenue sur MadukaOne</p>
+                <h2 class="mt-2 text-xl font-black text-slate-950">Bienvenue dans <?= $safe($activeShopName) ?></h2>
+                <p class="mt-2 text-sm text-slate-600">Finalisez ces deux étapes pour publier un catalogue complet.</p>
+            </div>
+            <?php if (is_string($storefrontUrl ?? null) && $storefrontUrl !== ''): ?>
+                <a class="btn-secondary whitespace-nowrap" href="<?= htmlspecialchars($storefrontUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Voir la boutique publique</a>
+            <?php endif; ?>
+        </div>
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            <a class="rounded-lg border border-white bg-white px-4 py-3 text-sm font-semibold text-slate-700" href="<?= $url('/shops/settings') ?>">
+                <?= !empty($activeShop['logo_url']) ? '☑' : '☐' ?> Ajouter un logo
+            </a>
+            <a class="rounded-lg border border-white bg-white px-4 py-3 text-sm font-semibold text-slate-700" href="<?= $url('/products/create') ?>">
+                <?= (int) ($summary['active_products'] ?? 0) > 0 ? '☑' : '☐' ?> Ajouter le premier produit au catalogue
+            </a>
+        </div>
+    </section>
+
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <?php foreach ($stats as $index => $stat): ?>
             <?php $toneClass = $statToneClasses[$stat['tone'] ?? 'slate'] ?? $statToneClasses['slate']; ?>

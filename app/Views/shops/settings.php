@@ -55,6 +55,11 @@ $icon = static function (string $name): string {
                     <span class="text-sm font-semibold text-slate-700">Email</span>
                     <input class="field-control" name="email" type="email" value="<?= $value('email') ?>">
                 </label>
+                <label class="space-y-2 sm:col-span-2">
+                    <span class="text-sm font-semibold text-slate-700">URL du logo public</span>
+                    <input class="field-control" name="logo_url" type="url" value="<?= $value('logo_url') ?>" placeholder="https://exemple.com/logo.png">
+                    <span class="block text-xs text-slate-500">Le logo apparaît dans l’en-tête du catalogue public.</span>
+                </label>
             </div>
         </section>
 

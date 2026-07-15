@@ -21,5 +21,7 @@ foreach ($routes as $route) {
     $router->add($method, $path, $action, $middlewares);
 }
 
+$router->storefront('StorefrontController@show');
+
 $router->dispatch();
 

@@ -14,7 +14,7 @@ unset($_SESSION['flash_error']);
 $oldEmail = htmlspecialchars((string) ($_POST['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
 $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
-$createShopUrl = htmlspecialchars($basePath . '/shops/create', ENT_QUOTES, 'UTF-8');
+$createShopUrl = htmlspecialchars($basePath . '/pricing', ENT_QUOTES, 'UTF-8');
 $homeUrl = htmlspecialchars($basePath . '/', ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>

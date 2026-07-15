@@ -1,6 +1,9 @@
 AddDefaultCharset UTF-8
 
 RewriteEngine On
-RewriteRule ^$ public/ [L]
+
+# Le domaine peut pointer vers la racine du projet : toutes les URL, y compris
+# /{slug-boutique}, sont alors transmises au front controller public.
+RewriteRule ^$ public/index.php [QSA,L]
 RewriteRule ^public/ - [L]
-RewriteRule (.*) public/$1 [L]
+RewriteRule ^(.+)$ public/$1 [QSA,L]
