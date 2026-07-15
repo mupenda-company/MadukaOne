@@ -16,6 +16,7 @@ DROP TABLE IF EXISTS sale_details;
 DROP TABLE IF EXISTS sales;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS product_categories;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS shops;
@@ -114,9 +115,24 @@ CREATE TABLE suppliers (
 -- 3. PRODUITS (SÃ‰PARÃ‰S PAR BOUTIQUE)
 -- =========================================================================
 
+CREATE TABLE product_categories (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  shop_id BIGINT UNSIGNED NOT NULL,
+  nom VARCHAR(150) NOT NULL,
+  slug VARCHAR(170) NOT NULL,
+  actif TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_product_categories_shop_slug (shop_id, slug),
+  UNIQUE KEY uq_product_categories_shop_nom (shop_id, nom),
+  KEY idx_product_categories_shop_actif (shop_id, actif),
+  CONSTRAINT fk_product_categories_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE products (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   shop_id BIGINT UNSIGNED NOT NULL,
+  category_id BIGINT UNSIGNED NULL,
   code_barre VARCHAR(80) NULL,
   ref VARCHAR(80) NULL,
   nom VARCHAR(190) NOT NULL,
@@ -138,11 +154,13 @@ CREATE TABLE products (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_products_shop_barcode (shop_id, code_barre),
   UNIQUE KEY uq_products_shop_ref (shop_id, ref),
+  KEY idx_products_category_id (category_id),
   KEY idx_products_nom (nom),
   KEY idx_products_actif (actif),
   KEY idx_products_quantite_stock (quantite_stock),
   KEY idx_products_date_expiration (date_expiration),
   CONSTRAINT fk_products_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES product_categories(id) ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT fk_products_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT fk_products_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT chk_products_prix_achat CHECK (prix_achat >= 0),

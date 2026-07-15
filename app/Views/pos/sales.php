@@ -15,6 +15,37 @@ $money = static function ($value) use ($salesCurrency, $exchangeRate): string {
 
     return number_format($amount, 2, ',', ' ') . ' ' . $salesCurrency;
 };
+$moneyExact = static function ($usdValue, $enteredValue = null, $currency = null) use ($exchangeRate): string {
+    $currency = in_array(($currency ?? 'USD'), ['USD', 'CDF'], true) ? (string) $currency : 'USD';
+    $enteredAmount = (float) ($enteredValue ?? 0);
+    $usdAmount = (float) $usdValue;
+
+    if ($enteredAmount <= 0) {
+        $enteredAmount = $currency === 'CDF' ? $usdAmount * $exchangeRate : $usdAmount;
+    }
+
+    $primary = $currency === 'CDF'
+        ? number_format($enteredAmount, 0, ',', ' ') . ' CDF'
+        : number_format($enteredAmount, 2, ',', ' ') . ' USD';
+    $secondary = $currency === 'CDF'
+        ? number_format($usdAmount, 2, ',', ' ') . ' USD'
+        : number_format($enteredAmount * $exchangeRate, 0, ',', ' ') . ' CDF';
+
+    return $primary . ' <span class="block text-xs font-semibold text-slate-500">(' . $secondary . ')</span>';
+};
+$moneyDebtExact = static function (array $sale) use ($moneyExact, $money): string {
+    $debtUsd = (float) ($sale['montant_dette'] ?? 0);
+    $saleCurrency = in_array(($sale['devise_saisie'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $sale['devise_saisie'] : 'USD';
+    $receivedCurrency = in_array(($sale['devise_recu'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $sale['devise_recu'] : 'USD';
+
+    if ($saleCurrency === $receivedCurrency && (float) ($sale['total_montant_saisi'] ?? 0) > 0) {
+        $debtEntered = max(0.0, (float) ($sale['total_montant_saisi'] ?? 0) - (float) ($sale['montant_recu_saisi'] ?? 0));
+
+        return $moneyExact($debtUsd, $debtEntered, $saleCurrency);
+    }
+
+    return $money($debtUsd);
+};
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateLabel = static function ($value): string {
     $timestamp = strtotime((string) ($value ?? ''));
@@ -207,9 +238,9 @@ $icon = static function (string $name): string {
                             <td class="px-4 py-4" data-label="Paiement">
                                 <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><?= $modeLabel($payment) ?></span>
                             </td>
-                            <td class="px-4 py-4 font-bold text-slate-950" data-label="Total"><?= $money($sale['total_montant'] ?? 0) ?></td>
-                            <td class="px-4 py-4 font-semibold text-teal-700" data-label="Reçu"><?= $money($sale['montant_recu'] ?? 0) ?></td>
-                            <td class="px-4 py-4 font-semibold <?= $debt > 0 ? 'text-amber-700' : 'text-slate-500' ?>" data-label="Crédit"><?= $money($debt) ?></td>
+                            <td class="px-4 py-4 font-bold text-slate-950" data-label="Total"><?= $moneyExact($sale['total_montant'] ?? 0, $sale['total_montant_saisi'] ?? null, $sale['devise_saisie'] ?? null) ?></td>
+                            <td class="px-4 py-4 font-semibold text-teal-700" data-label="Reçu"><?= $moneyExact($sale['montant_recu'] ?? 0, $sale['montant_recu_saisi'] ?? null, $sale['devise_recu'] ?? null) ?></td>
+                            <td class="px-4 py-4 font-semibold <?= $debt > 0 ? 'text-amber-700' : 'text-slate-500' ?>" data-label="Crédit"><?= $moneyDebtExact($sale) ?></td>
                             <td class="px-4 py-4" data-label="Statut">
                                 <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold <?= $statusClass($status) ?>"><?= $statusLabel($status) ?></span>
                             </td>

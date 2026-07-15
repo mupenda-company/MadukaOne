@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS product_pharmacy_details (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  shop_id BIGINT UNSIGNED NOT NULL,
+  product_id BIGINT UNSIGNED NOT NULL,
+  dosage VARCHAR(120) NULL,
+  forme VARCHAR(120) NULL,
+  fabricant VARCHAR(190) NULL,
+  numero_lot VARCHAR(120) NULL,
+  ordonnance_requise TINYINT(1) NOT NULL DEFAULT 0,
+  alerte_expiration_jours INT NOT NULL DEFAULT 30,
+  emplacement VARCHAR(120) NULL,
+  notes TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_product_pharmacy_details_product (product_id),
+  KEY idx_product_pharmacy_details_shop (shop_id),
+  KEY idx_product_pharmacy_details_lot (numero_lot),
+  CONSTRAINT fk_product_pharmacy_details_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_product_pharmacy_details_product FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS product_fashion_details (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  shop_id BIGINT UNSIGNED NOT NULL,
+  product_id BIGINT UNSIGNED NOT NULL,
+  taille VARCHAR(80) NULL,
+  couleur VARCHAR(80) NULL,
+  marque VARCHAR(150) NULL,
+  collection VARCHAR(150) NULL,
+  sexe ENUM('mixte', 'femme', 'homme', 'enfant') NOT NULL DEFAULT 'mixte',
+  matiere VARCHAR(150) NULL,
+  saison VARCHAR(120) NULL,
+  code_modele VARCHAR(120) NULL,
+  notes TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_product_fashion_details_product (product_id),
+  KEY idx_product_fashion_details_shop (shop_id),
+  KEY idx_product_fashion_details_variant (taille, couleur),
+  KEY idx_product_fashion_details_collection (collection),
+  CONSTRAINT fk_product_fashion_details_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_product_fashion_details_product FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

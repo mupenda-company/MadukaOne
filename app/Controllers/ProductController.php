@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/AppController.php';
+require_once dirname(__DIR__) . '/Core/SubscriptionGate.php';
 require_once dirname(__DIR__) . '/Core/Validator.php';
 require_once dirname(__DIR__) . '/Models/Product.php';
 
@@ -21,6 +22,7 @@ class ProductController extends AppController
             'pageTitle' => 'Produits',
             'activeMenu' => 'products',
             'products' => $this->products->allByShop($this->currentShopId()),
+            'productCategories' => $this->productCategories(),
         ]);
     }
 
@@ -29,6 +31,8 @@ class ProductController extends AppController
         $this->render('products/create', [
             'pageTitle' => 'Ajouter un produit',
             'activeMenu' => 'products',
+            'productCategories' => $this->productCategories(),
+            'nextReference' => $this->products->nextReference($this->currentShopId()),
         ]);
     }
 
@@ -45,6 +49,17 @@ class ProductController extends AppController
         $dateError = $this->dateValidationError($data);
         if ($dateError !== null) {
             $this->flashError($dateError);
+            $this->redirect('/products/create');
+        }
+
+        if (!$this->products->categoryBelongsToShop($this->nullableCategoryId($data['category_id'] ?? null), $this->currentShopId())) {
+            $this->flashError('La categorie selectionnee est invalide pour cette boutique.');
+            $this->redirect('/products/create');
+        }
+
+        $limitError = (new SubscriptionGate())->creationError($this->currentShopId(), 'products');
+        if ($limitError !== null) {
+            $this->flashError($limitError);
             $this->redirect('/products/create');
         }
 
@@ -70,6 +85,7 @@ class ProductController extends AppController
             'pageTitle' => 'Détail produit',
             'activeMenu' => 'products',
             'product' => $this->findProductFromParams($params),
+            'productCategories' => $this->productCategories(),
         ]);
     }
 
@@ -79,6 +95,7 @@ class ProductController extends AppController
             'pageTitle' => 'Modifier le produit',
             'activeMenu' => 'products',
             'product' => $this->findProductFromParams($params),
+            'productCategories' => $this->productCategories(),
         ]);
     }
 
@@ -99,6 +116,11 @@ class ProductController extends AppController
             $this->redirect('/products/' . $id . '/edit');
         }
 
+        if (!$this->products->categoryBelongsToShop($this->nullableCategoryId($data['category_id'] ?? null), $this->currentShopId())) {
+            $this->flashError('La categorie selectionnee est invalide pour cette boutique.');
+            $this->redirect('/products/' . $id . '/edit');
+        }
+
         if (!$this->products->updateByShop($id, $this->currentShopId(), $data, $this->currentUserId())) {
             $this->abort(404, 'Produit introuvable pour cette boutique.');
         }
@@ -115,6 +137,24 @@ class ProductController extends AppController
 
         $this->flashSuccess('Produit désactivé avec succès.');
         $this->redirect('/products');
+    }
+
+    public function storeCategory(array $params = []): void
+    {
+        try {
+            $payload = $this->isJsonRequest() ? $this->jsonPayload() : $_POST;
+            $category = $this->products->createCategory($this->currentShopId(), (string) ($payload['nom'] ?? $payload['name'] ?? ''));
+
+            $this->json([
+                'ok' => true,
+                'success' => true,
+                'message' => 'Categorie ajoutee avec succes.',
+                'category' => $category,
+                'categories' => $this->productCategories(),
+            ], 201);
+        } catch (Throwable $exception) {
+            $this->json(['ok' => false, 'success' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 
     private function validateProduct(array $data, bool $allowInitialStock): Validator
@@ -152,6 +192,7 @@ class ProductController extends AppController
         $payload = [
             'code_barre' => $_POST['code_barre'] ?? null,
             'ref' => $_POST['ref'] ?? null,
+            'category_id' => $_POST['category_id'] ?? null,
             'nom' => $_POST['nom'] ?? '',
             'description' => $_POST['description'] ?? null,
             'prix_achat' => $this->amountToUsd($purchaseAmount, $purchaseCurrency, $exchangeRate),
@@ -238,6 +279,50 @@ class ProductController extends AppController
         }
 
         return $date;
+    }
+
+    private function productCategories(): array
+    {
+        $categories = $this->products->categoriesByShop($this->currentShopId());
+
+        if ($categories === []) {
+            $this->products->createCategory($this->currentShopId(), 'General');
+            $categories = $this->products->categoriesByShop($this->currentShopId());
+        }
+
+        return $categories;
+    }
+
+    private function nullableCategoryId(mixed $value): ?int
+    {
+        $id = (int) ($value ?? 0);
+
+        return $id > 0 ? $id : null;
+    }
+
+    private function jsonPayload(): array
+    {
+        $raw = file_get_contents('php://input');
+
+        if ($raw === false || trim($raw) === '') {
+            return [];
+        }
+
+        $payload = json_decode($raw, true);
+
+        if (!is_array($payload) || json_last_error() !== JSON_ERROR_NONE) {
+            throw new InvalidArgumentException('JSON invalide.');
+        }
+
+        return $payload;
+    }
+
+    private function isJsonRequest(): bool
+    {
+        $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
+        $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+
+        return str_contains($contentType, 'application/json') || str_contains($accept, 'application/json');
     }
 
     private function findProductFromParams(array $params): array

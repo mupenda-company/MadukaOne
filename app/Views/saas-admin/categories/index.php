@@ -30,6 +30,10 @@ $assignedCount = array_sum(array_map(static fn (array $category): int => (int) (
                 <label class="mb-2 block text-sm font-semibold text-slate-700" for="category_nom">Nom</label>
                 <input class="field-control" id="category_nom" name="nom" required maxlength="120" placeholder="Ex: Fleuristes">
             </div>
+            <div>
+                <label class="mb-2 block text-sm font-semibold text-slate-700" for="category_description">Description</label>
+                <textarea class="field-control min-h-28" id="category_description" name="description" placeholder="Activite, modules prioritaires et contexte d'utilisation."></textarea>
+            </div>
             <label class="inline-flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold">
                 <input class="h-4 w-4" type="checkbox" name="actif" value="1" checked>
                 Categorie active
@@ -57,7 +61,7 @@ $assignedCount = array_sum(array_map(static fn (array $category): int => (int) (
                         method="post"
                         action="<?= $url('/saas-admin/categories/' . (int) ($category['id'] ?? 0) . '/update') ?>"
                         data-category-row
-                        data-search="<?= $safe(strtolower((string) ($category['nom'] ?? '') . ' ' . ($category['slug'] ?? ''))) ?>"
+                        data-search="<?= $safe(strtolower((string) ($category['nom'] ?? '') . ' ' . ($category['slug'] ?? '') . ' ' . ($category['description'] ?? ''))) ?>"
                     >
                         <div class="grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
                             <div>
@@ -75,6 +79,10 @@ $assignedCount = array_sum(array_map(static fn (array $category): int => (int) (
                                 </label>
                                 <button class="btn-secondary h-11 w-auto px-4" type="submit">Enregistrer</button>
                             </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="mb-2 block text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Description</label>
+                            <textarea class="field-control min-h-24" name="description"><?= $safe($category['description'] ?? '', '') ?></textarea>
                         </div>
                         <div class="mt-3 flex flex-wrap items-center gap-2">
                             <span class="rounded-lg px-2.5 py-1 text-xs font-bold <?= $isActive ? 'bg-teal-50 text-teal-700' : 'bg-red-50 text-red-700' ?>"><?= $isActive ? 'Active' : 'Inactive' ?></span>

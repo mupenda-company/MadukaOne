@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/Core/AppController.php';
 require_once dirname(__DIR__) . '/Core/Database.php';
+require_once dirname(__DIR__) . '/Core/SubscriptionGate.php';
 require_once dirname(__DIR__) . '/Models/Role.php';
 require_once dirname(__DIR__) . '/Models/User.php';
 
-class UserController
+class UserController extends AppController
 {
     private Role $roles;
     private User $users;
@@ -63,11 +65,7 @@ class UserController
             $nom = trim((string) ($_POST['nom'] ?? ''));
             $prenom = trim((string) ($_POST['prenom'] ?? ''));
             $roleId = (int) ($_POST['role_id'] ?? 0);
-            $shopId = (int) ($_SESSION['shop_id'] ?? 0);
-
-            if ($shopId < 1) {
-                $shopId = (int) ($_SESSION['user']['shop_id'] ?? $_SESSION['current_shop_id'] ?? 0);
-            }
+            $shopId = $this->currentShopId();
 
             if ($nom === '' || $prenom === '' || $roleId < 1 || $shopId < 1) {
                 $this->flashError('Veuillez renseigner le prenom, le nom et le role.');
@@ -76,6 +74,12 @@ class UserController
 
             if (!$this->roles->isAssignableInShop($roleId)) {
                 $this->flashError('Ce role est reserve a l espace SaaS et ne peut pas etre attribue dans une boutique.');
+                $this->redirect('/users/create');
+            }
+
+            $limitError = (new SubscriptionGate())->creationError($shopId, 'users');
+            if ($limitError !== null) {
+                $this->flashError($limitError);
                 $this->redirect('/users/create');
             }
 
@@ -202,7 +206,8 @@ class UserController
     {
         $this->startSession();
 
-        $currentUser = $this->currentUser();
+        $profile = $this->currentProfile();
+        $currentUser = $this->users->sessionPayload($profile);
         $shops = $this->shops();
         $activeShop = $this->activeShop($shops, $currentUser);
 
@@ -212,39 +217,57 @@ class UserController
             'shops' => $shops,
             'activeShop' => $activeShop,
             'activeMenu' => 'profile',
+            'profile' => $profile,
+            'hasPassword' => $this->users->hasPassword($profile),
         ]);
     }
 
-    private function render(string $view, array $data = []): void
+    public function updateProfile(array $params = []): void
     {
-        $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
-        $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
+        $this->startSession();
+        $profile = $this->currentProfile();
 
-        $asset = static function (string $path) use ($basePath): string {
-            return htmlspecialchars($basePath . '/' . ltrim($path, '/'), ENT_QUOTES, 'UTF-8');
-        };
+        try {
+            $this->users->updateProfile((int) $profile['id'], $_POST);
+            $this->refreshSessionUser((int) $profile['id']);
+            $this->flashSuccess('Profil mis a jour.');
+        } catch (Throwable $exception) {
+            $this->flashError('Mise a jour impossible: ' . $exception->getMessage());
+        }
 
-        $url = static function (string $path, array $query = []) use ($basePath): string {
-            $href = $basePath . '/' . ltrim($path, '/');
+        $this->redirect('/profil');
+    }
 
-            if ($path === '/') {
-                $href = $basePath === '' ? '/' : $basePath . '/';
+    public function updatePassword(array $params = []): void
+    {
+        $this->startSession();
+        $profile = $this->currentProfile();
+        $currentPassword = (string) ($_POST['current_password'] ?? '');
+        $password = (string) ($_POST['password'] ?? '');
+        $passwordConfirmation = (string) ($_POST['password_confirmation'] ?? '');
+
+        try {
+            if ($password === '' || strlen($password) < 8) {
+                throw new InvalidArgumentException('Le nouveau mot de passe doit contenir au moins 8 caracteres.');
             }
 
-            if ($query !== []) {
-                $href .= (str_contains($href, '?') ? '&' : '?') . http_build_query($query);
+            if ($password !== $passwordConfirmation) {
+                throw new InvalidArgumentException('La confirmation du mot de passe ne correspond pas.');
             }
 
-            return htmlspecialchars($href, ENT_QUOTES, 'UTF-8');
-        };
+            if ($this->users->hasPassword($profile) && !$this->users->verifyPassword($profile, $currentPassword)) {
+                throw new InvalidArgumentException('Le mot de passe actuel est incorrect.');
+            }
 
-        extract($data, EXTR_SKIP);
+            $shopId = $this->profileRequiresShopScope($profile) ? $this->currentShopId() : null;
+            $this->users->updatePassword((int) $profile['id'], $password, $shopId);
+            $this->refreshSessionUser((int) $profile['id']);
+            $this->flashSuccess('Mot de passe mis a jour.');
+        } catch (Throwable $exception) {
+            $this->flashError('Changement de mot de passe impossible: ' . $exception->getMessage());
+        }
 
-        ob_start();
-        require dirname(__DIR__) . '/Views/' . $view . '.php';
-        $content = (string) ob_get_clean();
-
-        require dirname(__DIR__) . '/Views/layouts/app.php';
+        $this->redirect('/profil');
     }
 
     private function employeeRoles(): array
@@ -291,103 +314,6 @@ class UserController
         return $code;
     }
 
-    private function flashError(string $message): void
-    {
-        $_SESSION['flash_error'] = $message;
-    }
-
-    private function flashSuccess(string $message): void
-    {
-        $_SESSION['flash_success'] = $message;
-    }
-
-    private function currentShopId(): int
-    {
-        $shopId = (int) ($_SESSION['shop_id'] ?? 0);
-
-        if ($shopId > 0) {
-            return $shopId;
-        }
-
-        $shopId = (int) ($_SESSION['user']['shop_id'] ?? 0);
-
-        if ($shopId > 0) {
-            return $shopId;
-        }
-
-        return (int) ($_SESSION['current_shop_id'] ?? 1);
-    }
-
-    private function redirect(string $path): never
-    {
-        $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
-        $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;
-
-        header('Location: ' . $basePath . '/' . ltrim($path, '/'), true, 302);
-        exit;
-    }
-
-    private function currentUser(): array
-    {
-        $user = $_SESSION['user'] ?? null;
-
-        if (is_array($user)) {
-            return $user;
-        }
-
-        return [
-            'id' => null,
-            'nom' => 'Administrateur',
-            'email' => 'admin@example.com',
-            'role' => 'admin',
-            'shop_id' => 1,
-            'auth_provider' => 'local',
-        ];
-    }
-
-    private function shops(): array
-    {
-        try {
-            $statement = Database::connection()->query(
-                'SELECT id, nom, adresse, telephone, actif FROM shops WHERE actif = 1 ORDER BY nom ASC'
-            );
-            $shops = $statement->fetchAll();
-
-            if (is_array($shops) && $shops !== []) {
-                return $shops;
-            }
-        } catch (Throwable) {
-        }
-
-        return [
-            [
-                'id' => 1,
-                'nom' => 'Boutique Pilote - Centre Ville',
-                'adresse' => 'Av. Principale No 10',
-                'telephone' => '+243000000000',
-                'actif' => 1,
-            ],
-        ];
-    }
-
-    private function activeShop(array $shops, array $currentUser): array
-    {
-        $requestedShopId = filter_input(INPUT_GET, 'shop_id', FILTER_VALIDATE_INT);
-        $sessionShopId = isset($_SESSION['current_shop_id']) ? (int) $_SESSION['current_shop_id'] : null;
-        $preferredShopId = $requestedShopId ?: $sessionShopId ?: (int) ($currentUser['shop_id'] ?? 0);
-
-        foreach ($shops as $shop) {
-            if ((int) $shop['id'] === $preferredShopId) {
-                $_SESSION['current_shop_id'] = (int) $shop['id'];
-                return $shop;
-            }
-        }
-
-        $_SESSION['current_shop_id'] = (int) $shops[0]['id'];
-
-        return $shops[0];
-    }
-
     private function userStats(array $users): array
     {
         $stats = [
@@ -420,14 +346,42 @@ class UserController
         return $stats;
     }
 
-    private function startSession(): void
+    private function currentProfile(): array
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start([
-                'cookie_httponly' => true,
-                'cookie_samesite' => 'Lax',
-                'use_strict_mode' => true,
-            ]);
+        $userId = (int) ($this->currentUser()['id'] ?? 0);
+
+        if ($userId < 1) {
+            $this->flashError('Session utilisateur invalide.');
+            $this->redirect('/login');
+        }
+
+        $profile = $this->users->findById($userId);
+
+        if ($profile === null) {
+            $this->flashError('Profil introuvable.');
+            $this->redirect('/logout');
+        }
+
+        if ($this->profileRequiresShopScope($profile) && (int) ($profile['shop_id'] ?? 0) !== $this->currentShopId()) {
+            $this->flashError('Ce profil ne correspond pas a la boutique active.');
+            $this->redirect('/dashboard');
+        }
+
+        return $profile;
+    }
+
+    private function profileRequiresShopScope(array $profile): bool
+    {
+        return !$this->users->isSaasAdminUser($profile);
+    }
+
+    private function refreshSessionUser(int $userId): void
+    {
+        $freshUser = $this->users->findById($userId);
+
+        if ($freshUser !== null) {
+            $_SESSION['user'] = $this->users->sessionPayload($freshUser);
         }
     }
+
 }

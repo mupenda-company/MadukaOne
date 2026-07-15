@@ -21,6 +21,7 @@ final class SaasAdminRepository extends Model
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 nom VARCHAR(120) NOT NULL,
                 slug VARCHAR(140) NOT NULL,
+                description TEXT NULL,
                 actif TINYINT(1) NOT NULL DEFAULT 1,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -29,6 +30,7 @@ final class SaasAdminRepository extends Model
                 KEY idx_shop_categories_actif (actif)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+        $this->ensureShopCategoryDescriptionColumn();
         $this->ensureShopCategoryColumn();
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS saas_features (
@@ -331,7 +333,7 @@ final class SaasAdminRepository extends Model
             $sql .= ' WHERE categories.actif = 1';
         }
 
-        $sql .= ' GROUP BY categories.id, categories.nom, categories.slug, categories.actif, categories.created_at, categories.updated_at
+        $sql .= ' GROUP BY categories.id, categories.nom, categories.slug, categories.description, categories.actif, categories.created_at, categories.updated_at
                   ORDER BY categories.nom ASC';
 
         return Database::connection()->query($sql)->fetchAll();
@@ -346,12 +348,13 @@ final class SaasAdminRepository extends Model
         }
 
         $statement = Database::connection()->prepare(
-            'INSERT INTO shop_categories (nom, slug, actif)
-             VALUES (:nom, :slug, :actif)'
+            'INSERT INTO shop_categories (nom, slug, description, actif)
+             VALUES (:nom, :slug, :description, :actif)'
         );
         $statement->execute([
             'nom' => $name,
             'slug' => $this->slug((string) ($data['slug'] ?? $name)),
+            'description' => $this->nullableString($data['description'] ?? null),
             'actif' => isset($data['actif']) ? (int) (bool) $data['actif'] : 1,
         ]);
 
@@ -370,12 +373,14 @@ final class SaasAdminRepository extends Model
             'UPDATE shop_categories
              SET nom = :nom,
                  slug = :slug,
+                 description = :description,
                  actif = :actif
              WHERE id = :id'
         );
         $statement->execute([
             'nom' => $name,
             'slug' => $this->slug((string) ($data['slug'] ?? $name)),
+            'description' => $this->nullableString($data['description'] ?? null),
             'actif' => isset($data['actif']) ? (int) (bool) $data['actif'] : 0,
             'id' => $id,
         ]);
@@ -520,6 +525,37 @@ final class SaasAdminRepository extends Model
             'plans' => $this->assignmentMap('saas_plan_features', 'plan_id', 'feature_id'),
             'category_plans' => $this->assignmentMap('saas_category_plans', 'category_id', 'plan_id'),
         ];
+    }
+
+    public function featureShopAccessRows(): array
+    {
+        $this->ensureSchema();
+
+        return Database::connection()->query(
+            'SELECT
+                shops.id,
+                shops.nom AS shop_name,
+                shops.actif AS shop_active,
+                categories.nom AS category_name,
+                categories.slug AS category_slug,
+                plans.nom AS plan_name,
+                subscriptions.statut AS subscription_status,
+                subscriptions.date_fin,
+                COUNT(DISTINCT features.id) AS features_count,
+                GROUP_CONCAT(DISTINCT features.code ORDER BY features.code SEPARATOR ", ") AS feature_codes
+             FROM shops
+             LEFT JOIN shop_categories categories ON categories.id = shops.category_id
+             LEFT JOIN saas_subscriptions subscriptions ON subscriptions.shop_id = shops.id
+             LEFT JOIN saas_subscription_plans plans ON plans.id = subscriptions.plan_id
+             LEFT JOIN saas_category_plans category_plans ON category_plans.category_id = shops.category_id
+                AND category_plans.plan_id = subscriptions.plan_id
+             LEFT JOIN saas_plan_features plan_features ON plan_features.plan_id = subscriptions.plan_id
+             LEFT JOIN saas_features features ON features.id = plan_features.feature_id
+                AND features.actif = 1
+                AND category_plans.plan_id IS NOT NULL
+             GROUP BY shops.id, shops.nom, shops.actif, categories.nom, categories.slug, plans.nom, subscriptions.statut, subscriptions.date_fin
+             ORDER BY shops.nom ASC'
+        )->fetchAll();
     }
 
     public function syncCategoryPlans(int $categoryId, array $planIds): void
@@ -930,16 +966,16 @@ final class SaasAdminRepository extends Model
             ['Boutiques', 'boutiques'],
             ['Pharmacies', 'pharmacies'],
             ['Quincailleries', 'quincailleries'],
-            ['Supermarchés', 'supermarches'],
-            ['Dépôts', 'depots'],
+            ['Supermarches', 'supermarches'],
+            ['Depots', 'depots'],
             ['Papeteries', 'papeteries'],
             ['Librairies', 'librairies'],
             ['Boulangeries', 'boulangeries'],
             ['Restaurants', 'restaurants'],
             ['Bars', 'bars'],
-            ['Hôtels', 'hotels'],
-            ['Magasins de vêtements', 'magasins-de-vetements'],
-            ['Magasins d\'électronique', 'magasins-d-electronique'],
+            ['Hotels', 'hotels'],
+            ['Magasins de vetements', 'magasins-de-vetements'],
+            ['Magasins d\'electronique', 'magasins-d-electronique'],
             ['Grossistes', 'grossistes'],
             ['Distributeurs', 'distributeurs'],
             ['Entreprises commerciales', 'entreprises-commerciales'],
@@ -954,6 +990,51 @@ final class SaasAdminRepository extends Model
             $statement->execute([
                 'nom' => $name,
                 'slug' => $slug,
+            ]);
+        }
+
+        $descriptions = [
+            'boutiques' => 'Commerce de detail general avec catalogue produits, caisse, stock, clients et rapports.',
+            'pharmacies' => 'Gestion des medicaments, lots, dates d expiration, stock sensible et ventes controlees.',
+            'quincailleries' => 'Articles de construction, outillage, quincaillerie, stock par references et approvisionnements.',
+            'supermarches' => 'Vente rapide multi-rayons avec caisse, inventaire, familles produits et volumes importants.',
+            'depots' => 'Gestion de stock entrepose, entrees, sorties, inventaires et suivi des mouvements.',
+            'papeteries' => 'Articles scolaires, fournitures de bureau, petits accessoires et vente au comptoir.',
+            'librairies' => 'Livres, manuels, auteurs, editions et stock de references culturelles ou scolaires.',
+            'boulangeries' => 'Produits frais, production journaliere, ventes rapides, pertes et suivi des invendus.',
+            'restaurants' => 'Menus, plats, boissons, caisse restaurant, depenses et pilotage journalier.',
+            'bars' => 'Boissons, consommations, caisse rapide, stock de bouteilles et suivi des recettes.',
+            'hotels' => 'Services hoteliers, chambres, prestations, facturation client et suivi d activite.',
+            'magasins-de-vetements' => 'Articles textiles, tailles, collections, stock boutique et ventes au detail.',
+            'magasins-d-electronique' => 'Appareils, accessoires, references techniques, stock et garanties commerciales.',
+            'grossistes' => 'Vente en gros, lots, prix de volume, grands stocks et clients professionnels.',
+            'distributeurs' => 'Distribution multi-clients, approvisionnement, suivi des sorties et rapports de reseau.',
+            'entreprises-commerciales' => 'Activite commerciale polyvalente avec ventes, achats, finances et reporting.',
+            'vendeur-forfait-mobile-unites' => 'Vente d unites, forfaits mobiles, recharges et suivi des operations de telecommunication.',
+        ];
+        $descriptionStatement = Database::connection()->prepare(
+            'INSERT INTO shop_categories (nom, slug, description, actif)
+             VALUES (:nom, :slug, :description, 1)
+             ON DUPLICATE KEY UPDATE
+                nom = VALUES(nom),
+                description = VALUES(description),
+                actif = VALUES(actif)'
+        );
+
+        foreach ($descriptions as $slug => $description) {
+            $name = [
+                'supermarches' => 'Supermarches',
+                'depots' => 'Depots',
+                'hotels' => 'Hotels',
+                'magasins-de-vetements' => 'Magasins de vetements',
+                'magasins-d-electronique' => 'Magasins d electronique',
+                'vendeur-forfait-mobile-unites' => 'Vendeur forfait mobile (Unites)',
+            ][$slug] ?? ucwords(str_replace('-', ' ', $slug));
+
+            $descriptionStatement->execute([
+                'nom' => $name,
+                'slug' => $slug,
+                'description' => $description,
             ]);
         }
 
@@ -1025,6 +1106,22 @@ final class SaasAdminRepository extends Model
 
         if ((int) $index === 0) {
             $pdo->exec('ALTER TABLE shops ADD KEY idx_shops_category_id (category_id)');
+        }
+    }
+
+    private function ensureShopCategoryDescriptionColumn(): void
+    {
+        $pdo = Database::connection();
+        $column = $pdo->query(
+            "SELECT COUNT(*)
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = 'shop_categories'
+               AND COLUMN_NAME = 'description'"
+        )->fetchColumn();
+
+        if ((int) $column === 0) {
+            $pdo->exec('ALTER TABLE shop_categories ADD COLUMN description TEXT NULL AFTER slug');
         }
     }
 

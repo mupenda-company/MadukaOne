@@ -2,35 +2,49 @@
 
 $role = strtolower((string) ($currentUser['role'] ?? $currentUser['role_legacy'] ?? 'agent'));
 $isAdmin = in_array($role, ['admin', 'super_admin', 'gerant'], true);
+$profile = is_array($shopCategoryProfile ?? null) ? $shopCategoryProfile : [];
+$catalogLabel = (string) ($profile['catalog_label'] ?? 'Catalogue produits');
+$posLabel = (string) ($profile['pos_label'] ?? 'Caisse POS');
+$stockLabel = (string) ($profile['stock_label'] ?? 'Stock et inventaire');
+$supplyLabel = (string) ($profile['supply_label'] ?? 'Approvisionnements');
+$customerLabel = (string) ($profile['customer_label'] ?? 'Clients et credits');
+$activityLabel = (string) ($profile['activity_label'] ?? 'Administration activite');
+$categorySlug = (string) ($profile['slug'] ?? $activeShop['category_slug'] ?? '');
+$enabledModuleCodes = is_array($enabledModuleCodes ?? null) ? array_map('strval', $enabledModuleCodes) : [];
+$moduleAllowed = static function (?string $moduleCode) use ($enabledModuleCodes): bool {
+    return $moduleCode === null || in_array($moduleCode, $enabledModuleCodes, true);
+};
 
 $navSections = [
     [
         'label' => 'Pilotage',
         'items' => [
             ['key' => 'dashboard', 'label' => 'Tableau de bord', 'href' => $url('/dashboard'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'dashboard'],
-            ['key' => 'reports', 'label' => 'Rapports', 'href' => $url('/rapports/ventes'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'chart'],
+            ['key' => 'reports', 'label' => 'Rapports', 'href' => $url('/rapports/ventes'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'chart', 'module' => 'reports'],
         ],
     ],
     [
         'label' => 'Ventes et clients',
         'items' => [
-            ['key' => 'pos', 'label' => 'Caisse POS', 'href' => $url('/pos'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'pos'],
-            ['key' => 'sales', 'label' => 'Historique ventes', 'href' => $url('/sales'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'receipt'],
-            ['key' => 'customers', 'label' => 'Clients et credits', 'href' => $url('/customers'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'users'],
+            ['key' => 'pos', 'label' => $posLabel, 'href' => $url('/pos'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'pos', 'module' => 'pos'],
+            ['key' => 'sales', 'label' => 'Historique ventes', 'href' => $url('/sales'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'receipt', 'module' => 'pos'],
+            ['key' => 'customers', 'label' => $customerLabel, 'href' => $url('/customers'), 'roles' => ['admin', 'super_admin', 'gerant', 'agent'], 'icon' => 'users', 'module' => 'customers'],
         ],
     ],
     [
         'label' => 'Stock et catalogue',
         'items' => [
-            ['key' => 'products', 'label' => 'Catalogue produits', 'href' => $url('/products'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'box'],
-            ['key' => 'stock', 'label' => 'Stock et inventaire', 'href' => $url('/stock/movements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'stock'],
+            ['key' => 'products', 'label' => $catalogLabel, 'href' => $url('/products'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'box', 'module' => 'stock'],
+            ['key' => 'pharmacy', 'label' => 'Gestion pharmacie', 'href' => $url('/pharmacie'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'medical', 'module' => 'pharmacy', 'category' => 'pharmacies'],
+            ['key' => 'fashion', 'label' => 'Gestion vetements', 'href' => $url('/vetements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'tag', 'module' => 'fashion', 'category' => 'magasins-de-vetements'],
+            ['key' => 'stock', 'label' => $stockLabel, 'href' => $url('/stock/movements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'stock', 'module' => 'stock'],
         ],
     ],
     [
         'label' => 'Achats et fournisseurs',
         'items' => [
-            ['key' => 'supplies', 'label' => 'Approvisionnements', 'href' => $url('/supplies'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'truck'],
-            ['key' => 'suppliers', 'label' => 'Fournisseurs', 'href' => $url('/suppliers'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'handshake'],
+            ['key' => 'supplies', 'label' => $supplyLabel, 'href' => $url('/supplies'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'truck', 'module' => 'supplies'],
+            ['key' => 'suppliers', 'label' => 'Fournisseurs', 'href' => $url('/suppliers'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'handshake', 'module' => 'supplies'],
         ],
     ],
     [
@@ -42,6 +56,8 @@ $navSections = [
     [
         'label' => 'Administration',
         'items' => [
+            ['key' => 'shop_activity', 'label' => $activityLabel, 'href' => $url('/shops/activity'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'activity'],
+            ['key' => 'shop_subscription', 'label' => 'Abonnement boutique', 'href' => $url('/shops/subscription'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'subscription'],
             ['key' => 'users', 'label' => 'Utilisateurs', 'href' => $url('/users'), 'roles' => ['admin', 'super_admin'], 'icon' => 'shield'],
             ['key' => 'roles', 'label' => 'Roles et permissions', 'href' => $url('/roles'), 'roles' => ['admin', 'super_admin'], 'icon' => 'key'],
             ['key' => 'shop_settings', 'label' => 'Parametres boutique', 'href' => $url('/shops/settings'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'settings'],
@@ -55,11 +71,15 @@ $icon = static function (string $name): string {
         'pos' => '<path d="M5 5h14v10H5V5Zm3 14h8M9 15v4m6-4v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'receipt' => '<path d="M7 3h10l2 2v16l-3-2-2 2-2-2-2 2-2-2-3 2V5l2-2Zm2 6h6M9 13h6M9 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'box' => '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 9 8-4.5M12 12 4 7.5M12 12v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+        'medical' => '<path d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6V4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+        'tag' => '<path d="M4 12V5h7l9 9-6 6-10-8Zm4-4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'stock' => '<path d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
         'truck' => '<path d="M3 7h11v9H3V7Zm11 3h4l3 3v3h-7v-6ZM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
         'handshake' => '<path d="M7 12 4.5 9.5a3 3 0 0 1 4.2-4.2L11 7.6l2.3-2.3a3 3 0 0 1 4.2 4.2L15 12m-8 0 5 5 5-5m-10 0 2.5-2.5M17 12l-2.5-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'users' => '<path d="M16 19c0-2.2-1.8-4-4-4H8c-2.2 0-4 1.8-4 4m12-7a3 3 0 1 0 0-6m4 13c0-1.9-1.3-3.5-3-3.9M10 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
         'finance' => '<path d="M4 18h16M7 15V9m5 6V6m5 9v-4M5 21h14M12 3l8 4H4l8-4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'subscription' => '<path d="M4 7h16v10H4V7Zm3 4h5m5 0h.01M7 14h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'activity' => '<path d="M4 12h4l2-6 4 12 2-6h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'chart' => '<path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'shield' => '<path d="M12 3 5 6v5c0 4.2 2.7 8 7 10 4.3-2 7-5.8 7-10V6l-7-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
         'key' => '<path d="M15 7a4 4 0 1 0-2.7 3.8L15 13.5V16h2.5v2.5H20V16l-5-5m-6-1h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -90,7 +110,12 @@ $icon = static function (string $name): string {
     <nav class="flex-1 space-y-5 overflow-y-auto px-3 py-4">
         <?php foreach ($navSections as $section): ?>
             <?php
-            $visibleItems = array_values(array_filter($section['items'], static fn (array $item): bool => in_array($role, $item['roles'], true) || $isAdmin));
+            $visibleItems = array_values(array_filter(
+                $section['items'],
+                static fn (array $item): bool => ((in_array($role, $item['roles'], true) || $isAdmin)
+                    && $moduleAllowed($item['module'] ?? null)
+                    && (!isset($item['category']) || (string) $item['category'] === $categorySlug))
+            ));
             ?>
             <?php if ($visibleItems === []): ?>
                 <?php continue; ?>

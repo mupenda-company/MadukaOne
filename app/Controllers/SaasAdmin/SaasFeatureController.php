@@ -15,6 +15,7 @@ final class SaasFeatureController extends BaseSaasAdminController
             'categories' => $this->repo->categories(),
             'plans' => $this->repo->plans(),
             'assignments' => $this->repo->featureAssignmentMaps(),
+            'shopAccessRows' => $this->repo->featureShopAccessRows(),
         ]);
     }
 
