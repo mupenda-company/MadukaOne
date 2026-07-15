@@ -559,6 +559,7 @@ final class User extends Model
             'role_name' => (string) ($user['role_name'] ?? ''),
             'role_legacy' => (string) ($user['role_legacy'] ?? 'agent'),
             'shop_id' => isset($user['shop_id']) ? (int) $user['shop_id'] : null,
+            'telephone' => (string) ($user['telephone'] ?? ''),
             'auth_provider' => (string) ($user['auth_provider'] ?? 'local'),
             'is_saas_admin' => $this->isSaasAdminUser($user),
         ];

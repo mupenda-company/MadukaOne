@@ -80,6 +80,16 @@
 
     return formatMoneyDual(total());
   };
+  const cartTotalInCurrency = (currency) => {
+    const items = [...cart.values()];
+    const normalizedCurrency = ['USD', 'CDF'].includes(currency) ? currency : posCurrency;
+
+    if (items.length > 0 && items.every((item) => item.priceCurrency === normalizedCurrency)) {
+      return items.reduce((sum, item) => sum + Number(item.priceEntered || 0) * item.quantity, 0);
+    }
+
+    return usdToAmount(total(), normalizedCurrency);
+  };
   const formatSaleTotal = (sale) => {
     const entered = Number(sale.total_montant_saisi || 0);
     const currency = ['USD', 'CDF'].includes(sale.devise_saisie) ? sale.devise_saisie : 'USD';
@@ -131,7 +141,7 @@
     cash: 'Cash',
     mobile_money: 'Mobile money',
     carte: 'Carte',
-    credit: 'CrÃƒÂ©dit',
+    credit: 'Crédit',
   }[value] || 'Cash');
 
   const formatDate = (value) => {
@@ -164,8 +174,31 @@
     messageTarget?.classList.add('hidden');
   };
 
+  const showExpiredProductPopup = (productName, expirationDate) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4';
+
+    const panel = document.createElement('div');
+    panel.className = 'w-full max-w-md rounded-xl bg-white p-5 shadow-2xl';
+    panel.innerHTML = `
+      <h3 class="text-lg font-bold text-slate-950">Produit expiré</h3>
+      <p class="mt-2 text-sm leading-6 text-slate-600"></p>
+      <button class="btn-primary mt-5 h-11 w-full" type="button">Compris</button>
+    `;
+
+    const dateText = expirationDate ? ` Date d'expiration: ${expirationDate}.` : '';
+    panel.querySelector('p').textContent = `Impossible de vendre ce produit car il a déjà expiré: ${productName || 'Produit'}.${dateText}`;
+    const close = () => overlay.remove();
+    panel.querySelector('button').addEventListener('click', close);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close();
+    });
+    document.body.appendChild(overlay);
+    panel.querySelector('button').focus();
+  };
+
   const customerLabel = (customer) => {
-    const phone = customer.telephone ? ` Ã‚Â· ${customer.telephone}` : '';
+    const phone = customer.telephone ? ` · ${customer.telephone}` : '';
     return `${customer.nom || 'Client'}${phone}`;
   };
 
@@ -301,14 +334,14 @@
       const data = await response.json();
 
       if (!response.ok || !data.ok || !data.customer) {
-        throw new Error(data.message || 'Impossible dÃ¢â‚¬â„¢ajouter ce client.');
+        throw new Error(data.message || "Impossible d'ajouter ce client.");
       }
 
       customers = Array.isArray(data.customers) ? data.customers : [...customers, data.customer];
       selectCustomer(data.customer);
-      showMessage(data.message || 'Client ajoutÃƒÂ© avec succÃƒÂ¨s.', 'success');
+      showMessage(data.message || 'Client ajouté avec succès.', 'success');
     } catch (error) {
-      showMessage(error.message || 'Erreur pendant la crÃƒÂ©ation du client.');
+      showMessage(error.message || 'Erreur pendant la création du client.');
     } finally {
       customerSaveButton.disabled = false;
       customerSaveButton.textContent = 'Enregistrer';
@@ -355,6 +388,7 @@
     const diff = received - saleTotal;
     const receivedCurrency = payload.received_currency || posCurrency;
     const enteredReceived = Number(payload.amount_received_entered || 0);
+    const displayDiff = enteredReceived - cartTotalInCurrency(receivedCurrency);
 
     if (confirmClient) {
       confirmClient.textContent = selectedCustomer ? customerLabel(selectedCustomer) : 'Client comptant';
@@ -401,10 +435,11 @@
         : `${formatCurrency(enteredReceived, receivedCurrency)} (${formatMoney(received)})`;
     }
     if (confirmChange) {
-      const diffLabel = diff >= 0 ? 'Monnaie ÃƒÂ  rendre' : 'Reste ÃƒÂ  payer';
-      confirmChange.textContent = `${diffLabel}: ${formatReceivedCurrency(Math.abs(diff), receivedCurrency)}`;
-      confirmChange.classList.toggle('text-red-700', diff < 0);
-      confirmChange.classList.toggle('text-teal-700', diff >= 0);
+      const diffLabel = displayDiff >= 0 ? 'Monnaie à rendre' : 'Reste à payer';
+      const equivalent = receivedCurrency === posCurrency ? '' : ` (${formatMoney(Math.abs(diff))})`;
+      confirmChange.textContent = `${diffLabel}: ${formatEnteredAmount(Math.abs(displayDiff), receivedCurrency)}${equivalent}`;
+      confirmChange.classList.toggle('text-red-700', displayDiff < 0);
+      confirmChange.classList.toggle('text-teal-700', displayDiff >= 0);
     }
 
     confirmModal?.classList.remove('hidden');
@@ -453,7 +488,7 @@
       if (customerSearch) customerSearch.value = '';
       render();
       renderLatestSales(data.latestSales);
-      showMessage(data.message || 'Vente validÃƒÂ©e.', 'success');
+      showMessage(data.message || 'Vente validée.', 'success');
     } catch (error) {
       closeSaleConfirmation();
       showMessage(error.message || 'Erreur de communication avec le serveur.');
@@ -474,7 +509,7 @@
       const empty = document.createElement('div');
       empty.className = 'rounded-lg border border-dashed border-slate-200 p-4 text-center text-sm text-slate-500';
       empty.dataset.posLatestEmpty = '';
-      empty.textContent = 'Aucune vente validÃƒÂ©e pour le moment.';
+      empty.textContent = 'Aucune vente validée pour le moment.';
       latestSalesTarget.appendChild(empty);
       return;
     }
@@ -496,11 +531,11 @@
 
       const meta = document.createElement('p');
       meta.className = 'mt-1 truncate text-xs text-slate-500';
-      meta.textContent = `${sale.customer_name || 'Client comptant'} Ã‚Â· ${formatDate(sale.date_vente)}`;
+      meta.textContent = `${sale.customer_name || 'Client comptant'} · ${formatDate(sale.date_vente)}`;
 
       const badge = document.createElement('span');
       badge.className = 'shrink-0 rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-teal-700';
-      badge.textContent = 'ValidÃƒÂ©e';
+      badge.textContent = 'Validée';
 
       info.append(invoice, meta);
       header.append(info, badge);
@@ -531,13 +566,14 @@
     const enteredReceived = Number(receivedInput?.value || 0);
     const received = amountToUsd(enteredReceived, receivedCurrency);
     const diff = received - total();
+    const displayDiff = enteredReceived - cartTotalInCurrency(receivedCurrency);
 
     if (changeTarget) {
-      const label = diff >= 0 ? 'Monnaie ÃƒÂ  rendre' : 'Reste ÃƒÂ  payer';
+      const label = displayDiff >= 0 ? 'Monnaie à rendre' : 'Reste à payer';
       const equivalent = receivedCurrency === posCurrency ? '' : ` (${formatMoney(Math.abs(diff))})`;
-      changeTarget.textContent = `${label}: ${formatCurrency(usdToAmount(Math.abs(diff), receivedCurrency), receivedCurrency)}${equivalent}`;
-      changeTarget.classList.toggle('text-red-700', diff < 0);
-      changeTarget.classList.toggle('text-teal-700', diff >= 0);
+      changeTarget.textContent = `${label}: ${formatEnteredAmount(Math.abs(displayDiff), receivedCurrency)}${equivalent}`;
+      changeTarget.classList.toggle('text-red-700', displayDiff < 0);
+      changeTarget.classList.toggle('text-teal-700', displayDiff >= 0);
     }
   };
 
@@ -591,6 +627,19 @@
     hideMessage();
 
     const id = button.dataset.id;
+    const expirationDate = String(button.dataset.expirationDate || '').slice(0, 10);
+
+    if (expirationDate !== '') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const expiresAt = new Date(`${expirationDate}T00:00:00`);
+
+      if (!Number.isNaN(expiresAt.getTime()) && expiresAt < today) {
+        showExpiredProductPopup(button.dataset.name || 'Produit', expirationDate);
+        return;
+      }
+    }
+
     const current = cart.get(id);
     const stock = Number(button.dataset.stock || 0);
     const nextQuantity = current ? current.quantity + 1 : 1;
@@ -731,7 +780,7 @@
     const payload = buildSalePayload();
 
     if ((payload.payment_method === 'credit' || Number(payload.amount_received || 0) < total()) && !selectedCustomer) {
-      showMessage('SÃƒÂ©lectionnez ou ajoutez un client pour une vente ÃƒÂ  crÃƒÂ©dit.');
+      showMessage('Sélectionnez ou ajoutez un client pour une vente à crédit.');
       customerSearch?.focus();
       renderCustomerResults();
       return;
@@ -753,7 +802,7 @@
     const enteredReceived = Number(receivedInput?.value || 0);
 
     if ((paymentMethod === 'credit' || amountToUsd(enteredReceived, receivedCurrency) < total()) && !selectedCustomer) {
-      showMessage('SÃƒÂ©lectionnez ou ajoutez un client pour une vente ÃƒÂ  crÃƒÂ©dit.');
+      showMessage('Sélectionnez ou ajoutez un client pour une vente à crédit.');
       customerSearch?.focus();
       renderCustomerResults();
       return;
@@ -797,7 +846,7 @@
       if (customerSearch) customerSearch.value = '';
       render();
       renderLatestSales(data.latestSales);
-      showMessage(data.message || 'Vente validÃƒÂ©e.', 'success');
+      showMessage(data.message || 'Vente validée.', 'success');
     } catch (error) {
       showMessage(error.message || 'Erreur de communication avec le serveur.');
     } finally {

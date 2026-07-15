@@ -141,6 +141,10 @@ $icon = static function (string $name): string {
                     <dd class="font-semibold text-slate-950"><?= $safe($product['ref'] ?? null, 'Non definie') ?></dd>
                 </div>
                 <div class="signal-row">
+                    <dt class="text-slate-500">Catégorie</dt>
+                    <dd class="font-semibold text-slate-950"><?= $safe($product['category_name'] ?? null, 'Sans catégorie') ?></dd>
+                </div>
+                <div class="signal-row">
                     <dt class="text-slate-500">Code-barres</dt>
                     <dd class="font-semibold text-slate-950"><?= $safe($product['code_barre'] ?? null, 'Non defini') ?></dd>
                 </div>

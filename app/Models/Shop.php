@@ -10,9 +10,23 @@ final class Shop extends Model
     public function find(int $id): ?array
     {
         $statement = Database::connection()->prepare(
-            'SELECT id, nom, adresse, telephone, email, devise_principale, taux_change_cdf, actif, created_at, updated_at
+            'SELECT shops.id,
+                    shops.nom,
+                    shops.adresse,
+                    shops.telephone,
+                    shops.email,
+                    shops.devise_principale,
+                    shops.taux_change_cdf,
+                    shops.actif,
+                    shops.created_at,
+                    shops.updated_at,
+                    shops.category_id,
+                    categories.nom AS category_name,
+                    categories.slug AS category_slug,
+                    categories.description AS category_description
              FROM shops
-             WHERE id = :id
+             LEFT JOIN shop_categories categories ON categories.id = shops.category_id
+             WHERE shops.id = :id
              LIMIT 1'
         );
         $statement->execute(['id' => $id]);

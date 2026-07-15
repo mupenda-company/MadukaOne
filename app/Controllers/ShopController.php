@@ -34,6 +34,22 @@ class ShopController extends AppController
         ]);
     }
 
+    public function activity(array $params = []): void
+    {
+        $shop = $this->shops->find($this->currentShopId());
+
+        if ($shop === null) {
+            $this->abort(404, 'Boutique introuvable.');
+        }
+
+        $this->render('shops/activity', [
+            'pageTitle' => 'Administration par activite',
+            'activeMenu' => 'shop_activity',
+            'shop' => $shop,
+            'shopCategoryProfile' => $this->shopCategoryProfile($shop),
+        ]);
+    }
+
     public function updateSettings(array $params = []): void
     {
         $shopId = $this->currentShopId();

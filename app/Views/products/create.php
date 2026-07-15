@@ -1,6 +1,8 @@
 <?php
 
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$productCategories = is_array($productCategories ?? null) ? $productCategories : [];
+$nextReference = (string) ($nextReference ?? 'PRD-000001');
 $defaultCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
 $exchangeRate = (float) ($activeShop['taux_change_cdf'] ?? 2800);
 ?>
@@ -26,12 +28,24 @@ $exchangeRate = (float) ($activeShop['taux_change_cdf'] ?? 2800);
                 </label>
                 <label class="block">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Référence interne</span>
-                    <input class="field-control" name="ref" type="text" placeholder="ELC-001">
+                    <input class="field-control bg-slate-50 font-semibold text-slate-600" name="ref" type="text" value="<?= htmlspecialchars($nextReference, ENT_QUOTES, 'UTF-8') ?>" readonly>
                 </label>
                 <label class="block">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Code-barres</span>
                     <input class="field-control" name="code_barre" type="text" placeholder="Scanner ou saisir">
                 </label>
+                <div class="block sm:col-span-2">
+                    <div class="mb-2 flex items-center justify-between gap-3">
+                        <span class="block text-sm font-semibold text-slate-700">Catégorie du produit</span>
+                        <button class="text-sm font-bold text-teal-700 hover:text-teal-900" type="button" data-product-category-open>Ajouter une catégorie</button>
+                    </div>
+                    <select class="field-control" name="category_id" data-product-category-select>
+                        <option value="">Sans catégorie</option>
+                        <?php foreach ($productCategories as $category): ?>
+                            <option value="<?= (int) ($category['id'] ?? 0) ?>"><?= htmlspecialchars((string) ($category['nom'] ?? ''), ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <div class="grid gap-2">
                     <span class="text-sm font-semibold text-slate-700">Prix d'achat</span>
                     <div class="grid grid-cols-[1fr_6rem] gap-2">
@@ -89,4 +103,93 @@ $exchangeRate = (float) ($activeShop['taux_change_cdf'] ?? 2800);
             <button class="btn-primary mt-6" type="submit">Enregistrer le produit</button>
         </aside>
     </form>
+
+    <div class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4" data-product-category-modal>
+        <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+            <h2 class="text-lg font-bold text-slate-950">Nouvelle catégorie</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-500">Ajoutez une catégorie et sélectionnez-la directement pour ce produit.</p>
+            <div class="mt-4 space-y-3">
+                <input class="field-control" type="text" placeholder="Ex. Boissons" data-product-category-name>
+                <p class="hidden rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700" data-product-category-error></p>
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <button class="btn-secondary" type="button" data-product-category-close>Annuler</button>
+                    <button class="btn-primary" type="button" data-product-category-save>Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
+
+<script>
+    (() => {
+        const endpoint = '<?= $url('/products/categories') ?>';
+        const modal = document.querySelector('[data-product-category-modal]');
+        const open = document.querySelector('[data-product-category-open]');
+        const close = document.querySelector('[data-product-category-close]');
+        const save = document.querySelector('[data-product-category-save]');
+        const input = document.querySelector('[data-product-category-name]');
+        const error = document.querySelector('[data-product-category-error]');
+        const select = document.querySelector('[data-product-category-select]');
+
+        const hideModal = () => {
+            modal?.classList.add('hidden');
+            modal?.classList.remove('flex');
+        };
+
+        open?.addEventListener('click', () => {
+            error?.classList.add('hidden');
+            if (input) input.value = '';
+            modal?.classList.remove('hidden');
+            modal?.classList.add('flex');
+            window.setTimeout(() => input?.focus(), 0);
+        });
+        close?.addEventListener('click', hideModal);
+        modal?.addEventListener('click', (event) => {
+            if (event.target === modal) hideModal();
+        });
+        save?.addEventListener('click', async () => {
+            const name = (input?.value || '').trim();
+            if (name === '') {
+                if (error) {
+                    error.textContent = 'Le nom de la catégorie est obligatoire.';
+                    error.classList.remove('hidden');
+                }
+                return;
+            }
+
+            save.disabled = true;
+            save.textContent = 'Enregistrement...';
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ nom: name }),
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data.ok || !data.category) {
+                    throw new Error(data.message || 'Création impossible.');
+                }
+
+                if (select) {
+                    let option = [...select.options].find((item) => item.value === String(data.category.id));
+                    if (!option) {
+                        option = new Option(data.category.nom, data.category.id);
+                        select.add(option);
+                    }
+                    select.value = String(data.category.id);
+                }
+                hideModal();
+            } catch (exception) {
+                if (error) {
+                    error.textContent = exception.message || 'Création impossible.';
+                    error.classList.remove('hidden');
+                }
+            } finally {
+                save.disabled = false;
+                save.textContent = 'Enregistrer';
+            }
+        });
+    })();
+</script>

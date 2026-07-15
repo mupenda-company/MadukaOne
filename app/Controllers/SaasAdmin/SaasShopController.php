@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/BaseSaasAdminController.php';
+require_once dirname(__DIR__, 2) . '/Core/ShopSettings.php';
 
 final class SaasShopController extends BaseSaasAdminController
 {
@@ -45,6 +46,7 @@ final class SaasShopController extends BaseSaasAdminController
 
         try {
             $shopId = $this->repo->createShop($_POST);
+            (new ShopSettings())->saveForShop($shopId, $_POST);
             $this->flashSuccess('Boutique creee. Configurez maintenant son abonnement.');
             $this->redirect('/saas-admin/abonnements#shop-' . $shopId);
         } catch (Throwable $exception) {
@@ -67,6 +69,7 @@ final class SaasShopController extends BaseSaasAdminController
             'activeMenu' => 'saas-shops',
             'shop' => $shop,
             'categories' => $this->repo->categories(true),
+            'businessSettings' => (new ShopSettings())->allForShop((int) $shop['id']),
         ]);
     }
 
@@ -103,6 +106,7 @@ final class SaasShopController extends BaseSaasAdminController
 
         try {
             $this->repo->updateShop($id, $_POST);
+            (new ShopSettings())->saveForShop($id, $_POST);
             $this->flashSuccess('Boutique mise a jour.');
             $this->redirect('/saas-admin/boutiques');
         } catch (Throwable $exception) {

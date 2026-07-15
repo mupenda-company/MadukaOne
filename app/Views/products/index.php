@@ -1,6 +1,7 @@
-<?php
+﻿<?php
 
 $products = is_array($products ?? null) ? $products : [];
+$productCategories = is_array($productCategories ?? null) ? $productCategories : [];
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
 $exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $activeProducts = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1));
@@ -75,10 +76,16 @@ $icon = static function (string $name): string {
                 Suivez les prix, les références et les seuils d’alerte stock par boutique.
             </p>
         </div>
-        <a class="btn-primary w-full gap-2 sm:w-auto" href="<?= $url('/products/create') ?>">
-            <?= $icon('plus') ?>
-            <span>Ajouter un produit</span>
-        </a>
+        <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <button class="btn-secondary w-full gap-2 sm:w-auto" type="button" data-product-category-open>
+                <?= $icon('plus') ?>
+                <span>Catégorie</span>
+            </button>
+            <a class="btn-primary w-full gap-2 sm:w-auto" href="<?= $url('/products/create') ?>">
+                <?= $icon('plus') ?>
+                <span>Ajouter un produit</span>
+            </a>
+        </div>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -112,44 +119,65 @@ $icon = static function (string $name): string {
         </article>
     </div>
 
-    <section class="surface-panel">
-        <div class="panel-header">
+    <section class="surface-panel border-slate-200/80 bg-white">
+        <div class="panel-header items-start">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600"><?= $icon('filter') ?></span>
+                    <span class="grid h-10 w-10 place-items-center rounded-lg bg-teal-50 text-teal-700"><?= $icon('filter') ?></span>
                     <h2 class="font-bold text-slate-950">Filtres produits</h2>
                 </div>
-                <p class="mt-1 text-sm text-slate-500">Filtres visuels côté interface, sans rechargement de page.</p>
+                <p class="mt-2 text-sm text-slate-500">Affinez le catalogue par statut, categorie, stock et niveau de prix.</p>
             </div>
-            <button class="btn-secondary gap-2" type="button" data-products-reset>
-                <span>Réinitialiser</span>
+            <button class="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800" type="button" data-products-reset>
+                Reinitialiser
             </button>
         </div>
 
-        <div class="mt-5 grid gap-3 lg:grid-cols-[1.4fr_.8fr_.8fr_.8fr]">
-            <label class="relative block">
-                <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><?= $icon('search') ?></span>
-                <input class="field-control pl-11" type="search" placeholder="Rechercher par nom, référence ou code-barres" data-products-search>
+        <div class="mt-5 flex flex-nowrap items-end gap-3 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label class="block min-w-[20rem] flex-[1_0_20rem] rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                <span class="mb-1 block px-2 text-xs font-bold uppercase tracking-[.12em] text-slate-400">Recherche</span>
+                <span class="relative block">
+                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><?= $icon('search') ?></span>
+                    <input class="h-11 w-full rounded-lg border-0 bg-white pl-10 pr-3 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400" type="search" placeholder="Nom, reference, code-barres" data-products-search>
+                </span>
             </label>
-            <select class="field-control" data-products-status>
-                <option value="all">Tous les statuts</option>
-                <option value="available">Disponible</option>
-                <option value="alert">Alerte stock</option>
-                <option value="expiration">Alerte expiration</option>
-                <option value="break">Rupture</option>
-            </select>
-            <select class="field-control" data-products-stock>
-                <option value="all">Tous les stocks</option>
-                <option value="positive">Stock positif</option>
-                <option value="low">Sous seuil minimum</option>
-                <option value="zero">Stock à zéro</option>
-            </select>
-            <select class="field-control" data-products-price>
-                <option value="all">Tous les prix</option>
-                <option value="0-10">0 à 10 USD</option>
-                <option value="10-50">10 à 50 USD</option>
-                <option value="50+">50 USD et plus</option>
-            </select>
+            <label class="block min-w-[12rem] flex-[0_0_12rem] rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                <span class="mb-1 block px-2 text-xs font-bold uppercase tracking-[.12em] text-slate-400">Statut</span>
+                <select class="h-11 w-full rounded-lg border-0 bg-white px-2 text-sm font-semibold text-slate-800 outline-none" data-products-status>
+                    <option value="all">Tous les statuts</option>
+                    <option value="available">Disponible</option>
+                    <option value="alert">Alerte stock</option>
+                    <option value="expiration">Alerte expiration</option>
+                    <option value="break">Rupture</option>
+                </select>
+            </label>
+            <label class="block min-w-[13rem] flex-[0_0_13rem] rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                <span class="mb-1 block px-2 text-xs font-bold uppercase tracking-[.12em] text-slate-400">Categorie</span>
+                <select class="h-11 w-full rounded-lg border-0 bg-white px-2 text-sm font-semibold text-slate-800 outline-none" data-products-category>
+                    <option value="all">Toutes categories</option>
+                    <?php foreach ($productCategories as $category): ?>
+                        <option value="<?= (int) ($category['id'] ?? 0) ?>"><?= htmlspecialchars((string) ($category['nom'] ?? ''), ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label class="block min-w-[12rem] flex-[0_0_12rem] rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                <span class="mb-1 block px-2 text-xs font-bold uppercase tracking-[.12em] text-slate-400">Stock</span>
+                <select class="h-11 w-full rounded-lg border-0 bg-white px-2 text-sm font-semibold text-slate-800 outline-none" data-products-stock>
+                    <option value="all">Tous les stocks</option>
+                    <option value="positive">Stock positif</option>
+                    <option value="low">Sous seuil minimum</option>
+                    <option value="zero">Stock a zero</option>
+                </select>
+            </label>
+            <label class="block min-w-[12rem] flex-[0_0_12rem] rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                <span class="mb-1 block px-2 text-xs font-bold uppercase tracking-[.12em] text-slate-400">Prix</span>
+                <select class="h-11 w-full rounded-lg border-0 bg-white px-2 text-sm font-semibold text-slate-800 outline-none" data-products-price>
+                    <option value="all">Tous les prix</option>
+                    <option value="0-10">0 a 10 USD</option>
+                    <option value="10-50">10 a 50 USD</option>
+                    <option value="50+">50 USD et plus</option>
+                </select>
+            </label>
         </div>
     </section>
 
@@ -171,6 +199,7 @@ $icon = static function (string $name): string {
                 <thead>
                     <tr class="text-xs uppercase tracking-[.14em] text-slate-400">
                         <th class="px-4 py-3 font-semibold">Produit</th>
+                        <th class="px-4 py-3 font-semibold">Catégorie</th>
                         <th class="px-4 py-3 font-semibold">Code-barres</th>
                         <th class="px-4 py-3 font-semibold">Achat</th>
                         <th class="px-4 py-3 font-semibold">Vente</th>
@@ -210,7 +239,7 @@ $icon = static function (string $name): string {
                                 $expirationClass = 'bg-teal-50 text-teal-700';
                             }
                         }
-                        $searchText = strtolower(trim((string) ($product['nom'] ?? '') . ' ' . (string) ($product['ref'] ?? '') . ' ' . (string) ($product['code_barre'] ?? '')));
+                        $searchText = strtolower(trim((string) ($product['nom'] ?? '') . ' ' . (string) ($product['ref'] ?? '') . ' ' . (string) ($product['code_barre'] ?? '') . ' ' . (string) ($product['category_name'] ?? '')));
                         ?>
                         <tr
                             class="hover:bg-slate-50"
@@ -219,6 +248,7 @@ $icon = static function (string $name): string {
                             data-status="<?= $statusKey ?>"
                             data-stock="<?= $stock ?>"
                             data-min="<?= $min ?>"
+                            data-category="<?= (int) ($product['category_id'] ?? 0) ?>"
                             data-price="<?= $salePrice ?>"
                             data-expiration-alert="<?= $expirationAlert ? '1' : '0' ?>"
                         >
@@ -231,6 +261,7 @@ $icon = static function (string $name): string {
                                     </span>
                                 </div>
                             </td>
+                            <td class="px-4 py-4 text-slate-600"><?= htmlspecialchars((string) ($product['category_name'] ?? 'Sans catégorie'), ENT_QUOTES, 'UTF-8') ?></td>
                             <td class="px-4 py-4 text-slate-600"><?= htmlspecialchars((string) $product['code_barre'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td class="px-4 py-4 font-semibold"><?= $formatProductMoney($product, 'purchase') ?></td>
                             <td class="px-4 py-4 font-semibold"><?= $formatProductMoney($product, 'sale') ?></td>
@@ -283,6 +314,22 @@ $icon = static function (string $name): string {
             </div>
         </div>
     </section>
+
+    <div class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4" data-product-category-modal>
+        <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+            <h2 class="text-lg font-bold text-slate-950">Nouvelle catégorie</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-500">Créez une catégorie sans quitter le catalogue.</p>
+            <div class="mt-4 space-y-3">
+                <input class="field-control" type="text" placeholder="Ex. Boissons" data-product-category-name>
+                <p class="hidden rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700" data-product-category-error></p>
+                <p class="hidden rounded-lg bg-teal-50 p-3 text-sm font-semibold text-teal-700" data-product-category-success></p>
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <button class="btn-secondary" type="button" data-product-category-close>Annuler</button>
+                    <button class="btn-primary" type="button" data-product-category-save>Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
 <script>
@@ -296,11 +343,20 @@ $icon = static function (string $name): string {
         const rows = [...root.querySelectorAll('[data-product-row]')];
         const search = root.querySelector('[data-products-search]');
         const status = root.querySelector('[data-products-status]');
+        const category = root.querySelector('[data-products-category]');
         const stock = root.querySelector('[data-products-stock]');
         const price = root.querySelector('[data-products-price]');
         const count = root.querySelector('[data-products-count]');
         const empty = root.querySelector('[data-products-empty]');
         const reset = root.querySelector('[data-products-reset]');
+        const categoryEndpoint = '<?= $url('/products/categories') ?>';
+        const categoryModal = root.querySelector('[data-product-category-modal]');
+        const categoryOpen = root.querySelector('[data-product-category-open]');
+        const categoryClose = root.querySelector('[data-product-category-close]');
+        const categorySave = root.querySelector('[data-product-category-save]');
+        const categoryInput = root.querySelector('[data-product-category-name]');
+        const categoryError = root.querySelector('[data-product-category-error]');
+        const categorySuccess = root.querySelector('[data-product-category-success]');
 
         const matchesPrice = (value, range) => {
             if (range === 'all') {
@@ -337,6 +393,7 @@ $icon = static function (string $name): string {
         const applyFilters = () => {
             const query = (search?.value || '').trim().toLowerCase();
             const statusValue = status?.value || 'all';
+            const categoryValue = category?.value || 'all';
             const stockValue = stock?.value || 'all';
             const priceValue = price?.value || 'all';
             let visible = 0;
@@ -345,6 +402,7 @@ $icon = static function (string $name): string {
                 const isVisible =
                     (query === '' || (row.dataset.search || '').includes(query)) &&
                     (statusValue === 'all' || row.dataset.status === statusValue || (statusValue === 'expiration' && row.dataset.expirationAlert === '1')) &&
+                    (categoryValue === 'all' || row.dataset.category === categoryValue) &&
                     matchesStock(row, stockValue) &&
                     matchesPrice(Number(row.dataset.price || 0), priceValue);
 
@@ -359,7 +417,7 @@ $icon = static function (string $name): string {
             empty?.classList.toggle('hidden', visible !== 0);
         };
 
-        [search, status, stock, price].forEach((control) => {
+        [search, status, category, stock, price].forEach((control) => {
             control?.addEventListener('input', applyFilters);
             control?.addEventListener('change', applyFilters);
         });
@@ -374,10 +432,76 @@ $icon = static function (string $name): string {
             if (stock) {
                 stock.value = 'all';
             }
+            if (category) {
+                category.value = 'all';
+            }
             if (price) {
                 price.value = 'all';
             }
             applyFilters();
+        });
+
+        const closeCategoryModal = () => {
+            categoryModal?.classList.add('hidden');
+            categoryModal?.classList.remove('flex');
+        };
+
+        categoryOpen?.addEventListener('click', () => {
+            categoryError?.classList.add('hidden');
+            categorySuccess?.classList.add('hidden');
+            if (categoryInput) categoryInput.value = '';
+            categoryModal?.classList.remove('hidden');
+            categoryModal?.classList.add('flex');
+            window.setTimeout(() => categoryInput?.focus(), 0);
+        });
+
+        categoryClose?.addEventListener('click', closeCategoryModal);
+        categoryModal?.addEventListener('click', (event) => {
+            if (event.target === categoryModal) closeCategoryModal();
+        });
+        categorySave?.addEventListener('click', async () => {
+            const name = (categoryInput?.value || '').trim();
+            if (name === '') {
+                if (categoryError) {
+                    categoryError.textContent = 'Le nom de la catégorie est obligatoire.';
+                    categoryError.classList.remove('hidden');
+                }
+                return;
+            }
+
+            categorySave.disabled = true;
+            categorySave.textContent = 'Enregistrement...';
+
+            try {
+                const response = await fetch(categoryEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ nom: name }),
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data.ok || !data.category) {
+                    throw new Error(data.message || 'Création impossible.');
+                }
+
+                if (category && ![...category.options].some((option) => option.value === String(data.category.id))) {
+                    category.add(new Option(data.category.nom, data.category.id));
+                }
+                if (categorySuccess) {
+                    categorySuccess.textContent = 'Catégorie ajoutée. Elle est disponible dans les formulaires produit.';
+                    categorySuccess.classList.remove('hidden');
+                }
+                if (categoryError) categoryError.classList.add('hidden');
+            } catch (exception) {
+                if (categoryError) {
+                    categoryError.textContent = exception.message || 'Création impossible.';
+                    categoryError.classList.remove('hidden');
+                }
+                categorySuccess?.classList.add('hidden');
+            } finally {
+                categorySave.disabled = false;
+                categorySave.textContent = 'Enregistrer';
+            }
         });
 
         applyFilters();

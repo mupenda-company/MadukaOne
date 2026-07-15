@@ -30,10 +30,14 @@ final class Sale extends Model
         try {
             $customerId = $this->nullablePositiveInt($payload['customer_id'] ?? null);
             $paymentMethod = $this->validPaymentMethod((string) ($payload['mode_paiement'] ?? 'cash'));
-            $amountReceived = max(0.0, (float) ($payload['montant_recu'] ?? 0));
             $receivedCurrency = $this->validCurrency((string) ($payload['received_currency'] ?? 'USD'));
             $shopCurrency = $this->shopCurrency($db, $shopId);
             $exchangeRate = $shopCurrency['exchange_rate'];
+            $hasEnteredReceived = array_key_exists('amount_received_entered', $payload);
+            $rawAmountReceivedEntered = max(0.0, (float) ($payload['amount_received_entered'] ?? 0));
+            $amountReceived = $hasEnteredReceived
+                ? $this->currencyToUsd($rawAmountReceivedEntered, $receivedCurrency, $exchangeRate)
+                : max(0.0, (float) ($payload['montant_recu'] ?? 0));
             $invoiceNumber = $this->generateInvoiceNumber($db);
             $lines = [];
             $totalAmount = 0.0;
@@ -43,9 +47,14 @@ final class Sale extends Model
                 $product = $this->lockProductForSale($db, (int) $item['product_id'], $shopId);
                 $quantity = (int) $item['quantite'];
                 $stockBefore = (int) $product['quantite_stock'];
+                $expirationDate = trim((string) ($product['date_expiration'] ?? ''));
 
                 if ($stockBefore < $quantity) {
                     throw new RuntimeException('Stock insuffisant pour le produit: ' . $product['nom']);
+                }
+
+                if ($expirationDate !== '' && $expirationDate < date('Y-m-d')) {
+                    throw new RuntimeException('Impossible de vendre ce produit car il a deja expire: ' . $product['nom']);
                 }
 
                 $salePrice = (float) $product['prix_vente'];
@@ -80,7 +89,10 @@ final class Sale extends Model
             $totalAmountEntered = count($enteredTotalsByCurrency) === 1
                 ? (float) array_values($enteredTotalsByCurrency)[0]
                 : $this->usdToCurrency($totalAmount, $saleCurrency, $exchangeRate);
-            $amountReceivedEntered = $this->usdToCurrency($amountReceived, $receivedCurrency, $exchangeRate);
+            $maxAmountReceivedEntered = $this->usdToCurrency($totalAmount, $receivedCurrency, $exchangeRate);
+            $amountReceivedEntered = $hasEnteredReceived
+                ? min($rawAmountReceivedEntered, $maxAmountReceivedEntered)
+                : $this->usdToCurrency($amountReceived, $receivedCurrency, $exchangeRate);
             $debtAmount = $this->calculateDebt($paymentMethod, $amountReceived, $totalAmount);
 
             if ($debtAmount > 0 && $customerId === null) {
@@ -548,7 +560,7 @@ final class Sale extends Model
     private function lockProductForSale(PDO $db, int $productId, int $shopId): array
     {
         $statement = $db->prepare(
-            'SELECT id, nom, prix_achat, prix_vente, prix_vente_devise, prix_vente_montant, quantite_stock
+            'SELECT id, nom, prix_achat, prix_vente, prix_vente_devise, prix_vente_montant, quantite_stock, date_expiration
              FROM products
              WHERE id = :id AND shop_id = :shop_id AND actif = 1
              LIMIT 1
@@ -810,6 +822,14 @@ final class Sale extends Model
         return $currency === 'CDF' ? round($amount * $exchangeRate, 2) : round($amount, 2);
     }
 
+    private function currencyToUsd(float $amount, string $currency, float $exchangeRate): float
+    {
+        $currency = $this->validCurrency($currency);
+        $exchangeRate = $exchangeRate > 0 ? $exchangeRate : 2800.0;
+
+        return $currency === 'CDF' ? round($amount / $exchangeRate, 6) : round($amount, 2);
+    }
+
     private function shopCurrency(PDO $db, int $shopId): array
     {
         $statement = $db->prepare(
@@ -835,8 +855,10 @@ final class Sale extends Model
 
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
-            $where[] = '(sales.numero_facture LIKE :search OR customers.nom LIKE :search OR users.nom LIKE :search)';
-            $params['search'] = '%' . $search . '%';
+            $where[] = '(sales.numero_facture LIKE :search_invoice OR customers.nom LIKE :search_customer OR users.nom LIKE :search_user)';
+            $params['search_invoice'] = '%' . $search . '%';
+            $params['search_customer'] = '%' . $search . '%';
+            $params['search_user'] = '%' . $search . '%';
         }
 
         $status = strtolower(trim((string) ($filters['status'] ?? 'all')));

@@ -85,6 +85,39 @@ final class Middleware
         }
     }
 
+    public static function moduleAccess(string $path, string $method, array $params = []): void
+    {
+        self::startSession();
+
+        $moduleCode = self::moduleCodeForPath($path);
+
+        if ($moduleCode === null) {
+            return;
+        }
+
+        $user = $_SESSION['user'] ?? null;
+
+        if (!is_array($user)) {
+            self::redirect('/login');
+        }
+
+        try {
+            require_once __DIR__ . '/ShopContext.php';
+            require_once __DIR__ . '/ModuleRegistry.php';
+
+            $context = new ShopContext($user);
+            $shopId = $context->id();
+
+            if ((new ModuleRegistry())->allows($shopId, $moduleCode)) {
+                return;
+            }
+        } catch (Throwable) {
+        }
+
+        $_SESSION['flash_error'] = 'Module indisponible avec l abonnement ou la categorie de cette boutique.';
+        self::redirect('/shops/activity', 403);
+    }
+
     private static function isAdmin(): bool
     {
         return in_array(self::currentRole(), ['admin', 'super_admin', 'gerant'], true);
@@ -153,6 +186,30 @@ final class Middleware
         $role = $user['role'] ?? $user['role_legacy'] ?? null;
 
         return is_string($role) ? strtolower($role) : null;
+    }
+
+    private static function moduleCodeForPath(string $path): ?string
+    {
+        $map = [
+            '#^/(pos|caisse)(/|$)#' => 'pos',
+            '#^/(sales|ventes)(/|$)#' => 'pos',
+            '#^/(customers|clients)(/|$)#' => 'customers',
+            '#^/products(/|$)#' => 'stock',
+            '#^/(pharmacie|pharmacy)(/|$)#' => 'pharmacy',
+            '#^/(vetements|fashion)(/|$)#' => 'fashion',
+            '#^/stock(/|$)#' => 'stock',
+            '#^/(supplies|suppliers|fournisseurs)(/|$)#' => 'supplies',
+            '#^/(reports|rapports)(/|$)#' => 'reports',
+            '#^/backup/manual$#' => 'reports',
+        ];
+
+        foreach ($map as $pattern => $moduleCode) {
+            if (preg_match($pattern, $path) === 1) {
+                return $moduleCode;
+            }
+        }
+
+        return null;
     }
 
     private static function denyAgent(): never

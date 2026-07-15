@@ -7,7 +7,25 @@ require_once dirname(__DIR__) . '/Core/Model.php';
 
 class Role extends Model
 {
-    private const SAAS_ROLE_NAMES = ['super admin', 'super_admin', 'super-administrateur', 'super administrateur'];
+    private const RESERVED_COMPACT_NAMES = [
+        'superadmin',
+        'superadministrateur',
+        'superadministratrice',
+        'superuser',
+        'superusers',
+        'superutilisateur',
+        'superutilisateurs',
+    ];
+
+    private const RESERVED_EXACT_NAMES = [
+        'root',
+        'owner',
+        'saas admin',
+        'admin saas',
+        'system admin',
+        'admin systeme',
+        'administrateur systeme',
+    ];
 
     public function allWithUsage(): array
     {
@@ -20,12 +38,14 @@ class Role extends Model
                 COUNT(users.id) AS users_count
              FROM roles
              LEFT JOIN users ON users.role_id = roles.id
-             WHERE LOWER(REPLACE(REPLACE(roles.nom, '-', ' '), '_', ' ')) NOT IN ('super admin', 'super administrateur')
              GROUP BY roles.id, roles.nom, roles.permissions, roles.created_at
              ORDER BY roles.nom ASC"
         );
 
-        return $statement->fetchAll();
+        return array_values(array_filter(
+            $statement->fetchAll(),
+            fn (array $role): bool => !$this->isSaasRoleName((string) ($role['nom'] ?? ''))
+        ));
     }
 
     public function create(array $data): int
@@ -64,9 +84,31 @@ class Role extends Model
 
     public function isSaasRoleName(string $name): bool
     {
-        $normalized = strtolower(trim(str_replace(['-', '_'], ' ', $name)));
-        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+        $normalized = $this->normalizeRoleName($name);
 
-        return in_array($normalized, self::SAAS_ROLE_NAMES, true);
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (in_array($normalized, self::RESERVED_EXACT_NAMES, true)) {
+            return true;
+        }
+
+        if (preg_match('/\bsuper\s+(admin|administrateur|administratrice|user|users|utilisateur|utilisateurs)\b/', $normalized) === 1) {
+            return true;
+        }
+
+        $compact = preg_replace('/[^a-z0-9]+/', '', $normalized) ?? '';
+
+        return in_array($compact, self::RESERVED_COMPACT_NAMES, true);
+    }
+
+    private function normalizeRoleName(string $name): string
+    {
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+        $normalized = strtolower((string) $ascii);
+        $normalized = preg_replace('/[^a-z0-9]+/', ' ', $normalized) ?? $normalized;
+
+        return trim(preg_replace('/\s+/', ' ', $normalized) ?? $normalized);
     }
 }
