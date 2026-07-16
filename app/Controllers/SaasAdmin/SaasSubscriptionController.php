@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/BaseSaasAdminController.php';
+require_once dirname(__DIR__, 2) . '/Core/ModuleCatalog.php';
 
 final class SaasSubscriptionController extends BaseSaasAdminController
 {
@@ -16,6 +17,7 @@ final class SaasSubscriptionController extends BaseSaasAdminController
             'features' => $this->repo->features(),
             'assignments' => $this->repo->featureAssignmentMaps(),
             'featureIdsByShop' => $this->repo->featureIdsByShop(),
+            'moduleCatalog' => ModuleCatalog::all(),
         ]);
     }
 

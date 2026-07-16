@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/Models/PublicPlan.php';
+require_once dirname(__DIR__) . '/Models/LegalContent.php';
+
 final class HomeController
 {
     public function index(array $params = []): void
@@ -10,6 +13,7 @@ final class HomeController
             'pageTitle' => 'Accueil',
             'pageDescription' => 'MadukaOne centralise la caisse, le stock, les ventes, les clients et les rapports pour piloter une boutique moderne.',
             'activePublicPage' => 'home',
+            'subscriptionPlans' => (new PublicPlan())->activeWithFeatures(),
         ]);
     }
 
@@ -19,6 +23,7 @@ final class HomeController
             'pageTitle' => 'Politique de confidentialité',
             'pageDescription' => 'Politique de confidentialité de MadukaOne pour la gestion des données professionnelles.',
             'activePublicPage' => 'privacy',
+            'legalSections' => (new LegalContent())->sections('privacy', true),
         ]);
     }
 
@@ -28,11 +33,20 @@ final class HomeController
             'pageTitle' => 'Conditions d’utilisation',
             'pageDescription' => 'Conditions d’utilisation de MadukaOne pour les administrateurs, gérants et agents.',
             'activePublicPage' => 'terms',
+            'legalSections' => (new LegalContent())->sections('terms', true),
         ]);
     }
 
     private function renderPublic(string $view, array $data = []): void
     {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start([
+                'cookie_httponly' => true,
+                'cookie_samesite' => 'Lax',
+                'use_strict_mode' => true,
+            ]);
+        }
+
         if (!headers_sent()) {
             header('Content-Type: text/html; charset=UTF-8');
         }
@@ -42,6 +56,7 @@ final class HomeController
         $pageTitle = (string) ($data['pageTitle'] ?? $appName);
         $pageDescription = (string) ($data['pageDescription'] ?? '');
         $activePublicPage = (string) ($data['activePublicPage'] ?? '');
+        $isAuthenticated = isset($_SESSION['user']) && is_array($_SESSION['user']);
 
         $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
         $basePath = ($basePath === '' || $basePath === '.') ? '' : $basePath;

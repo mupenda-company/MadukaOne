@@ -200,6 +200,7 @@ $icon = static function (string $name): string {
                                 title="Voir l'utilisateur"
                                 aria-label="Voir l'utilisateur <?= $safe($name) ?>"
                                 data-user-preview
+                                data-user-initials="<?= $safe($initials($name)) ?>"
                                 data-user-name="<?= $safe($name) ?>"
                                 data-user-email="<?= $safe($email, 'Email non renseigne') ?>"
                                 data-user-phone="<?= $safe($phone, 'Telephone non renseigne') ?>"
@@ -208,6 +209,7 @@ $icon = static function (string $name): string {
                                 data-user-status="<?= $active ? 'Actif' : 'Inactif' ?>"
                                 data-user-provider="<?= $safe($providerLabel($provider)) ?>"
                                 data-user-login="<?= $safe($dateLabel($user['derniere_connexion'] ?? null)) ?>"
+                                data-user-edit-url="<?= $url('/admin/users/edit/' . $userId) ?>"
                             >
                                 <?= $icon('eye') ?>
                             </button>
@@ -263,45 +265,67 @@ $icon = static function (string $name): string {
     </section>
 </section>
 
-<div class="fixed inset-0 z-[75] hidden items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm" data-user-preview-modal role="dialog" aria-modal="true" aria-labelledby="user-preview-title">
-    <div class="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
-        <div class="flex items-start justify-between gap-4">
-            <div>
-                <p class="text-xs font-bold uppercase tracking-[.16em] text-teal-700">Apercu utilisateur</p>
-                <h2 class="mt-2 text-xl font-bold text-slate-950" id="user-preview-title" data-user-preview-name>Utilisateur</h2>
-                <p class="mt-1 text-sm text-slate-500" data-user-preview-email></p>
-            </div>
-            <button class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-950" type="button" data-user-preview-close aria-label="Fermer">
-                <span aria-hidden="true">x</span>
+<div class="fixed inset-0 z-[75] hidden items-center justify-center overflow-y-auto bg-slate-950/60 px-4 py-6 backdrop-blur-sm" data-user-preview-modal role="dialog" aria-modal="true" aria-labelledby="user-preview-title">
+    <div class="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/80 bg-white shadow-2xl shadow-slate-950/25" data-user-preview-panel tabindex="-1">
+        <div class="relative overflow-hidden bg-slate-950 px-5 py-6 text-white sm:px-7">
+            <div class="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-teal-400/20 blur-2xl"></div>
+            <div class="absolute -bottom-24 left-24 h-44 w-44 rounded-full bg-blue-500/20 blur-2xl"></div>
+            <button class="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/10" type="button" data-user-preview-close aria-label="Fermer">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             </button>
+
+            <div class="relative flex items-center gap-4 pr-12 sm:gap-5">
+                <span class="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-teal-300 to-teal-500 text-xl font-black text-slate-950 shadow-lg shadow-teal-950/20" data-user-preview-initials>U</span>
+                <div class="min-w-0">
+                    <p class="text-xs font-bold uppercase tracking-[.18em] text-teal-300">Profil utilisateur</p>
+                    <h2 class="mt-2 truncate text-2xl font-bold" id="user-preview-title" data-user-preview-name>Utilisateur</h2>
+                    <p class="mt-1 truncate text-sm text-slate-300" data-user-preview-email></p>
+                </div>
+            </div>
         </div>
 
-        <dl class="mt-5 grid gap-3 sm:grid-cols-2">
-            <div class="signal-row">
-                <dt class="text-slate-500">Telephone</dt>
-                <dd class="font-semibold text-slate-950" data-user-preview-phone>-</dd>
+        <div class="p-5 sm:p-7">
+            <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Etat du compte</p>
+                    <p class="mt-1 text-sm text-slate-600">Acces et rattachement actuels</p>
+                </div>
+                <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold" data-user-preview-status-badge>
+                    <span class="h-2 w-2 rounded-full bg-current"></span>
+                    <span data-user-preview-status>-</span>
+                </span>
             </div>
-            <div class="signal-row">
-                <dt class="text-slate-500">Role</dt>
-                <dd class="font-semibold text-slate-950" data-user-preview-role>-</dd>
+
+            <dl class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <dt class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.12em] text-slate-400"><?= $icon('users') ?> Telephone</dt>
+                    <dd class="mt-2 break-words font-bold text-slate-950" data-user-preview-phone>-</dd>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <dt class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.12em] text-slate-400"><?= $icon('shield') ?> Role</dt>
+                    <dd class="mt-2 font-bold text-slate-950" data-user-preview-role>-</dd>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <dt class="text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Boutique assignee</dt>
+                    <dd class="mt-2 font-bold text-slate-950" data-user-preview-shop>-</dd>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <dt class="text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Mode de connexion</dt>
+                    <dd class="mt-2 font-bold text-slate-950" data-user-preview-provider>-</dd>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
+                    <dt class="text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Derniere connexion</dt>
+                    <dd class="mt-2 font-bold text-slate-950" data-user-preview-login>-</dd>
+                </div>
+            </dl>
+
+            <div class="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+                <button class="btn-secondary w-full sm:w-auto" type="button" data-user-preview-close>Fermer</button>
+                <a class="btn-primary w-full gap-2 sm:w-auto" href="#" data-user-preview-edit>
+                    <?= $icon('edit') ?> Modifier l utilisateur
+                </a>
             </div>
-            <div class="signal-row">
-                <dt class="text-slate-500">Boutique</dt>
-                <dd class="font-semibold text-slate-950" data-user-preview-shop>-</dd>
-            </div>
-            <div class="signal-row">
-                <dt class="text-slate-500">Statut</dt>
-                <dd class="font-semibold text-slate-950" data-user-preview-status>-</dd>
-            </div>
-            <div class="signal-row">
-                <dt class="text-slate-500">Connexion</dt>
-                <dd class="font-semibold text-slate-950" data-user-preview-provider>-</dd>
-            </div>
-            <div class="signal-row">
-                <dt class="text-slate-500">Derniere connexion</dt>
-                <dd class="font-semibold text-slate-950" data-user-preview-login>-</dd>
-            </div>
-        </dl>
+        </div>
     </div>
 </div>
 
@@ -315,7 +339,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var input = page.querySelector('[data-users-search]');
     var rows = Array.prototype.slice.call(page.querySelectorAll('[data-user-row]'));
     var previewModal = document.querySelector('[data-user-preview-modal]');
-    var previewClose = document.querySelector('[data-user-preview-close]');
+    var previewCloseButtons = document.querySelectorAll('[data-user-preview-close]');
+    var previewPanel = document.querySelector('[data-user-preview-panel]');
+    var previewEdit = document.querySelector('[data-user-preview-edit]');
+    var previewStatusBadge = document.querySelector('[data-user-preview-status-badge]');
 
     var setPreviewText = function (key, value) {
         var target = document.querySelector('[data-user-preview-' + key + ']');
@@ -337,6 +364,7 @@ document.addEventListener('DOMContentLoaded', function () {
     page.querySelectorAll('[data-user-preview]').forEach(function (button) {
         button.addEventListener('click', function () {
             setPreviewText('name', button.dataset.userName);
+            setPreviewText('initials', button.dataset.userInitials);
             setPreviewText('email', button.dataset.userEmail);
             setPreviewText('phone', button.dataset.userPhone);
             setPreviewText('role', button.dataset.userRole);
@@ -345,15 +373,33 @@ document.addEventListener('DOMContentLoaded', function () {
             setPreviewText('provider', button.dataset.userProvider);
             setPreviewText('login', button.dataset.userLogin);
 
+            if (previewEdit) {
+                previewEdit.href = button.dataset.userEditUrl || '#';
+            }
+
+            if (previewStatusBadge) {
+                var isActive = button.dataset.userStatus === 'Actif';
+                previewStatusBadge.className = 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ' + (isActive ? 'bg-teal-50 text-teal-700' : 'bg-red-50 text-red-700');
+            }
+
             previewModal?.classList.remove('hidden');
             previewModal?.classList.add('flex');
             document.body.classList.add('overflow-hidden');
+            window.setTimeout(function () { previewPanel?.focus(); }, 0);
         });
     });
 
-    previewClose?.addEventListener('click', closePreview);
+    previewCloseButtons.forEach(function (button) {
+        button.addEventListener('click', closePreview);
+    });
     previewModal?.addEventListener('click', function (event) {
         if (event.target === previewModal) {
+            closePreview();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && previewModal && !previewModal.classList.contains('hidden')) {
             closePreview();
         }
     });

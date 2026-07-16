@@ -49,7 +49,7 @@ $navSections = [
     [
         'label' => 'Finance',
         'items' => [
-            ['key' => 'finances', 'label' => 'Depenses et finances', 'href' => $url('/finances'), 'roles' => ['admin', 'super_admin'], 'icon' => 'finance'],
+            ['key' => 'finances', 'label' => 'Depenses et finances', 'href' => $url('/finances'), 'roles' => ['admin', 'super_admin'], 'icon' => 'finance', 'module' => 'finance'],
         ],
     ],
     [

@@ -34,10 +34,6 @@ final class ModuleRegistry
             $features[(string) $feature['code']] = $feature + ['source' => 'plan'];
         }
 
-        foreach ($this->directFeaturesForShop($shopId) as $feature) {
-            $features[(string) $feature['code']] = $feature + ['source' => 'shop'];
-        }
-
         ksort($features);
 
         return array_values($features);
@@ -94,28 +90,4 @@ final class ModuleRegistry
         }
     }
 
-    private function directFeaturesForShop(int $shopId): array
-    {
-        try {
-            $statement = Database::connection()->prepare(
-                'SELECT DISTINCT
-                        features.id,
-                        features.code,
-                        features.nom,
-                        features.description,
-                        features.categorie
-                 FROM saas_shop_features shop_features
-                 INNER JOIN saas_features features ON features.id = shop_features.feature_id
-                    AND features.actif = 1
-                 WHERE shop_features.shop_id = :shop_id
-                   AND shop_features.actif = 1
-                 ORDER BY features.categorie ASC, features.nom ASC'
-            );
-            $statement->execute(['shop_id' => $shopId]);
-
-            return $statement->fetchAll();
-        } catch (Throwable) {
-            return [];
-        }
-    }
 }

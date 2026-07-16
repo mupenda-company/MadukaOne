@@ -3,6 +3,7 @@
 $subscription = is_array($subscription ?? null) ? $subscription : null;
 $payments = is_array($payments ?? null) ? $payments : [];
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$shopCategory = (string) ($activeShop['category_name'] ?? 'Sans categorie');
 $exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? $subscription['taux_change_cdf'] ?? 2800) ?: 2800);
 $shopCurrency = in_array(($activeShop['devise_principale'] ?? $subscription['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) ($activeShop['devise_principale'] ?? $subscription['devise_principale']) : 'USD';
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
@@ -51,6 +52,10 @@ $features = array_values(array_filter(array_map('trim', $features), static fn (s
         <div>
             <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Abonnement</p>
             <h1 class="text-3xl font-bold tracking-normal text-slate-950">Abonnement de la boutique</h1>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+                <span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700"><?= $safe($activeShop['nom'] ?? 'Boutique') ?></span>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">Categorie : <?= $safe($shopCategory) ?></span>
+            </div>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                 Consultez le plan actif, les informations de paiement et le renouvellement de votre boutique.
             </p>

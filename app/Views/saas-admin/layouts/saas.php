@@ -35,6 +35,8 @@ $navGroups = [
         'items' => [
             ['key' => 'saas-activities', 'label' => 'Administration activite', 'href' => $url('/saas-admin/activites'), 'icon' => 'M4 12h4l2-6 4 12 2-6h4'],
             ['key' => 'saas-settings', 'label' => 'Parametres generaux', 'href' => $url('/saas-admin/parametres'), 'icon' => 'M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5ZM19 13v-2l-2.1-.4a7 7 0 0 0-.7-1.7l1.2-1.8-1.4-1.4-1.8 1.2a7 7 0 0 0-1.7-.7L12 4H10l-.4 2.1a7 7 0 0 0-1.7.7L6.1 5.6 4.7 7l1.2 1.8a7 7 0 0 0-.7 1.7L3 11v2l2.1.4a7 7 0 0 0 .7 1.7l-1.2 1.8L6 18.3l1.8-1.2a7 7 0 0 0 1.7.7L10 20h2l.4-2.1a7 7 0 0 0 1.7-.7l1.8 1.2 1.4-1.4-1.2-1.8a7 7 0 0 0 .7-1.7L19 13Z'],
+            ['key' => 'saas-privacy', 'label' => 'Politique de confidentialite', 'href' => $url('/saas-admin/confidentialite'), 'icon' => 'M12 3 5 6v5c0 4.6 2.8 8 7 10 4.2-2 7-5.4 7-10V6l-7-3Zm-3 9 2 2 4-5'],
+            ['key' => 'saas-terms', 'label' => 'Conditions d utilisation', 'href' => $url('/saas-admin/conditions'), 'icon' => 'M6 3h9l3 3v15H6V3Zm8 0v4h4M9 11h6M9 15h6'],
         ],
     ],
 ];

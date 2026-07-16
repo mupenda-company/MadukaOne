@@ -199,6 +199,7 @@ final class Middleware
             '#^/(vetements|fashion)(/|$)#' => 'fashion',
             '#^/stock(/|$)#' => 'stock',
             '#^/(supplies|suppliers|fournisseurs)(/|$)#' => 'supplies',
+            '#^/(expenses|finances|depenses)(/|$)#' => 'finance',
             '#^/(reports|rapports)(/|$)#' => 'reports',
             '#^/backup/manual$#' => 'reports',
         ];

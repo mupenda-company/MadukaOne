@@ -41,8 +41,12 @@ $publicNav = [
             </nav>
 
             <div class="flex items-center gap-2">
-                <a class="public-login-link" href="<?= $url('/login') ?>">Connexion</a>
-                <a class="public-cta hidden sm:inline-flex" href="<?= $url('/login') ?>">Accéder</a>
+                <?php if (!$isAuthenticated): ?>
+                    <a class="public-login-link" href="<?= $url('/login') ?>">Connexion</a>
+                    <a class="public-cta hidden sm:inline-flex" href="<?= $url('/login') ?>">Accéder</a>
+                <?php else: ?>
+                    <a class="public-cta" href="<?= $url('/dashboard') ?>">Accéder à la boutique</a>
+                <?php endif; ?>
                 <button class="public-menu-button" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="public-mobile-menu" data-public-menu-toggle>
                     <span></span>
                     <span></span>
@@ -69,7 +73,11 @@ $publicNav = [
                 <?php endforeach; ?>
             </div>
 
-            <a class="public-mobile-cta" href="<?= $url('/login') ?>">Se connecter</a>
+            <?php if (!$isAuthenticated): ?>
+                <a class="public-mobile-cta" href="<?= $url('/login') ?>">Se connecter</a>
+            <?php else: ?>
+                <a class="public-mobile-cta" href="<?= $url('/dashboard') ?>">Accéder à la boutique</a>
+            <?php endif; ?>
         </nav>
 
         <main>
@@ -158,7 +166,8 @@ $publicNav = [
 
         const updateActivePublicLink = () => {
             let activeKey = 'home';
-            const triggerLine = window.scrollY + 150;
+            const navHeight = document.querySelector('.public-nav')?.getBoundingClientRect().height || 0;
+            const triggerLine = window.scrollY + navHeight + 32;
 
             trackedSections.forEach((section) => {
                 if (section.offsetTop <= triggerLine) {
@@ -169,10 +178,59 @@ $publicNav = [
             setActivePublicLink(activeKey);
         };
 
+        const scrollToPublicSection = (key, updateHash = true) => {
+            if (trackedSections.length === 0) {
+                return false;
+            }
+
+            const target = key === 'home' ? document.body : document.getElementById(key);
+
+            if (!target) {
+                return false;
+            }
+
+            const navHeight = document.querySelector('.public-nav')?.getBoundingClientRect().height || 0;
+            const targetTop = key === 'home'
+                ? 0
+                : Math.max(0, window.scrollY + target.getBoundingClientRect().top - navHeight - 16);
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            setPublicMenuOpen(false);
+            setActivePublicLink(key);
+            window.scrollTo({ top: targetTop, behavior: reduceMotion ? 'auto' : 'smooth' });
+
+            if (updateHash) {
+                const nextUrl = key === 'home'
+                    ? window.location.pathname + window.location.search
+                    : '#' + encodeURIComponent(key);
+                window.history.pushState({ publicSection: key }, '', nextUrl);
+            }
+
+            return true;
+        };
+
+        sectionLinks.forEach((link) => {
+            link.addEventListener('click', (event) => {
+                const key = link.dataset.publicNavLink || 'home';
+
+                if (scrollToPublicSection(key)) {
+                    event.preventDefault();
+                }
+            });
+        });
+
         if (sectionLinks.length > 0 && trackedSections.length > 0) {
             updateActivePublicLink();
             window.addEventListener('scroll', updateActivePublicLink, { passive: true });
-            window.addEventListener('hashchange', updateActivePublicLink);
+            window.addEventListener('popstate', () => {
+                const key = decodeURIComponent(window.location.hash.replace(/^#/, '')) || 'home';
+                scrollToPublicSection(key, false);
+            });
+
+            const initialKey = decodeURIComponent(window.location.hash.replace(/^#/, ''));
+            if (initialKey) {
+                window.requestAnimationFrame(() => scrollToPublicSection(initialKey, false));
+            }
         }
     </script>
 </body>

@@ -2,10 +2,13 @@
 
 $pageEyebrow = (string) ($pageEyebrow ?? 'Pilotage');
 $activeShopName = (string) ($activeShop['nom'] ?? 'Boutique active');
+$activeShopCategory = (string) ($activeShop['category_name'] ?? 'Sans categorie');
 $summary = is_array($summary ?? null) ? $summary : [];
 $stats = is_array($stats ?? null) ? $stats : [];
 $recentSignals = is_array($recentSignals ?? null) ? $recentSignals : [];
 $monthlyTrend = is_array($monthlyTrend ?? null) ? $monthlyTrend : [];
+$enabledModuleCodes = is_array($enabledModuleCodes ?? null) ? array_map('strval', $enabledModuleCodes) : [];
+$hasModule = static fn (string $code): bool => in_array($code, $enabledModuleCodes, true);
 
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dashboardCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
@@ -43,28 +46,43 @@ $statToneClasses = [
 ?>
 
 <section class="space-y-5 sm:space-y-6" data-dashboard-page>
-    <div class="dashboard-hero">
-        <div class="min-w-0">
-            <p class="text-xs font-semibold uppercase tracking-[.18em] text-teal-700"><?= $safe($pageEyebrow) ?></p>
-            <h1 class="mt-3 text-2xl font-semibold tracking-normal text-slate-950 sm:text-3xl">Tableau de bord admin</h1>
+    <div class="relative grid overflow-hidden rounded-3xl border border-teal-200/80 bg-gradient-to-br from-white via-teal-50/80 to-blue-100/80 p-5 shadow-xl shadow-slate-300/40 sm:p-7 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)] lg:items-stretch lg:gap-6 lg:p-7">
+        <div class="pointer-events-none absolute -left-20 -top-28 h-72 w-72 rounded-full bg-gradient-to-br from-teal-300/35 to-cyan-200/10 blur-3xl"></div>
+        <div class="pointer-events-none absolute -bottom-36 right-52 h-72 w-72 rounded-full bg-gradient-to-tr from-blue-300/30 to-indigo-200/10 blur-3xl"></div>
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-blue-500"></div>
+        <div class="relative flex min-w-0 flex-col justify-center rounded-2xl border border-white/70 bg-white/55 p-5 backdrop-blur-sm sm:p-7">
+            <div class="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur">
+                <span class="h-2 w-2 rounded-full bg-teal-500 shadow-sm shadow-teal-500/50"></span>
+                <p class="text-[11px] font-bold uppercase tracking-[.18em] text-teal-700"><?= $safe($pageEyebrow) ?></p>
+            </div>
+            <h1 class="mt-4 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl lg:text-[2.15rem]">Tableau de bord admin</h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 Vue centrale pour suivre les ventes du jour, le chiffre d’affaires, la marge, les charges et les signaux sensibles de <?= $safe($activeShopName) ?>.
             </p>
+            <div class="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
+                <span class="rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-teal-700">Suivi en temps reel</span>
+                <span class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-blue-700">Devise : <?= $safe($dashboardCurrency) ?></span>
+            </div>
         </div>
 
-        <div class="hero-action-panel min-w-0 lg:w-80">
-            <p class="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Boutique active</p>
-            <p class="mt-2 truncate text-sm font-bold text-slate-950"><?= $safe($activeShopName) ?></p>
-            <p class="mt-1 truncate text-xs text-slate-500"><?= $safe($activeShop['adresse'] ?? 'Adresse non définie') ?></p>
-            <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <div class="rounded-lg border border-teal-100 bg-teal-50 p-3">
-                    <p class="text-[11px] font-bold uppercase tracking-[.12em] text-teal-700">Aujourd’hui</p>
-                    <p class="mt-1 text-sm font-black text-slate-950"><?= (int) ($summary['today_sales'] ?? 0) ?> ticket(s)</p>
+        <div class="relative mt-5 flex min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-white/30 bg-gradient-to-br from-teal-700 via-cyan-700 to-blue-700 p-5 text-white shadow-2xl shadow-cyan-900/25 sm:p-6 lg:mt-0" data-dashboard-shop-card>
+            <div class="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-cyan-300/35 to-transparent blur-2xl"></div>
+            <div class="pointer-events-none absolute -bottom-16 -left-12 h-36 w-36 rounded-full bg-gradient-to-tr from-blue-500/35 to-transparent blur-2xl"></div>
+            <div class="relative">
+            <p class="text-xs font-semibold uppercase tracking-[.14em] text-teal-200">Boutique active</p>
+            <p class="mt-2 truncate text-xl font-black text-white"><?= $safe($activeShopName) ?></p>
+            <p class="mt-3 inline-flex max-w-full rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-teal-100 ring-1 ring-white/15"><?= $safe($activeShopCategory) ?></p>
+            <p class="mt-2 truncate text-xs text-cyan-50/80"><?= $safe($activeShop['adresse'] ?? 'Adresse non définie') ?></p>
+            <div class="mt-5 grid grid-cols-2 gap-3">
+                <div class="rounded-xl border border-teal-200/20 bg-gradient-to-br from-teal-400/20 to-white/10 p-4 backdrop-blur">
+                    <p class="text-[11px] font-bold uppercase tracking-[.12em] text-teal-100">Aujourd’hui</p>
+                    <p class="mt-2 text-lg font-black text-white"><?= (int) ($summary['today_sales'] ?? 0) ?> <span class="text-xs font-semibold text-slate-300">ticket(s)</span></p>
                 </div>
-                <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                    <p class="text-[11px] font-bold uppercase tracking-[.12em] text-blue-700">Catalogue</p>
-                    <p class="mt-1 text-sm font-black text-slate-950"><?= (int) ($summary['active_products'] ?? 0) ?> actif(s)</p>
+                <div class="rounded-xl border border-blue-200/20 bg-gradient-to-br from-blue-400/25 to-white/10 p-4 backdrop-blur">
+                    <p class="text-[11px] font-bold uppercase tracking-[.12em] text-blue-100">Catalogue</p>
+                    <p class="mt-2 text-lg font-black text-white"><?= (int) ($summary['active_products'] ?? 0) ?> <span class="text-xs font-semibold text-slate-300">actif(s)</span></p>
                 </div>
+            </div>
             </div>
         </div>
     </div>
@@ -84,9 +102,11 @@ $statToneClasses = [
             <a class="rounded-lg border border-white bg-white px-4 py-3 text-sm font-semibold text-slate-700" href="<?= $url('/shops/settings') ?>">
                 <?= !empty($activeShop['logo_url']) ? '☑' : '☐' ?> Ajouter un logo
             </a>
-            <a class="rounded-lg border border-white bg-white px-4 py-3 text-sm font-semibold text-slate-700" href="<?= $url('/products/create') ?>">
-                <?= (int) ($summary['active_products'] ?? 0) > 0 ? '☑' : '☐' ?> Ajouter le premier produit au catalogue
-            </a>
+            <?php if ($hasModule('stock')): ?>
+                <a class="rounded-lg border border-white bg-white px-4 py-3 text-sm font-semibold text-slate-700" href="<?= $url('/products/create') ?>">
+                    <?= (int) ($summary['active_products'] ?? 0) > 0 ? '☑' : '☐' ?> Ajouter le premier produit au catalogue
+                </a>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -125,7 +145,7 @@ $statToneClasses = [
                     <h2 class="font-bold text-slate-950">Évolution commerciale</h2>
                     <p class="mt-1 text-sm text-slate-500">Chiffre d’affaires, marge brute et bénéfice net des six derniers mois.</p>
                 </div>
-                <a class="btn-secondary w-full sm:w-auto" href="<?= $url('/rapports/ventes') ?>">Rapports</a>
+                <?php if ($hasModule('reports')): ?><a class="btn-secondary w-full sm:w-auto" href="<?= $url('/rapports/ventes') ?>">Rapports</a><?php endif; ?>
             </div>
 
             <div class="mt-5 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-6 sm:p-4" data-dashboard-chart-scroll>
@@ -182,8 +202,8 @@ $statToneClasses = [
             </div>
 
             <div class="mt-5 grid gap-3">
-                <a class="btn-primary" href="<?= $url('/pos') ?>">Nouvelle vente</a>
-                <a class="btn-secondary w-full" href="<?= $url('/stock') ?>">Voir le stock</a>
+                <?php if ($hasModule('pos')): ?><a class="btn-primary" href="<?= $url('/pos') ?>">Nouvelle vente</a><?php endif; ?>
+                <?php if ($hasModule('stock')): ?><a class="btn-secondary w-full" href="<?= $url('/stock') ?>">Voir le stock</a><?php endif; ?>
             </div>
         </aside>
     </div>

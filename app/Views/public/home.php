@@ -103,6 +103,7 @@ $plans = [
         'featured' => false,
     ],
 ];
+$plans = is_array($subscriptionPlans ?? null) ? $subscriptionPlans : [];
 $faqs = [
     ['question' => 'MadukaOne fonctionne pour une seule boutique ?', 'answer' => 'Oui. Le plan Starter couvre une petite boutique avec les fonctions essentielles de caisse, stock et rapports.'],
     ['question' => 'Les employés voient-ils toutes les données ?', 'answer' => 'Non. L’accès dépend du rôle et des permissions configurés pour chaque utilisateur de la boutique.'],
@@ -121,7 +122,11 @@ $faqs = [
             </p>
 
             <div class="public-home-actions">
-                <a class="public-hero-cta" href="<?= $url('/login') ?>">Se connecter</a>
+                <?php if (!$isAuthenticated): ?>
+                    <a class="public-hero-cta" href="<?= $url('/login') ?>">Se connecter</a>
+                <?php else: ?>
+                    <a class="public-hero-cta" href="<?= $url('/dashboard') ?>">Accéder à la boutique</a>
+                <?php endif; ?>
                 <a class="public-hero-secondary" href="#plans">Voir les abonnements</a>
             </div>
         </div>
@@ -227,31 +232,50 @@ $faqs = [
 
             <div class="public-plan-grid">
                 <?php foreach ($plans as $plan): ?>
-                    <article class="public-plan-card <?= $plan['featured'] ? 'is-featured' : '' ?>">
+                    <?php
+                    $planCode = (string) ($plan['code'] ?? '');
+                    $isRecommended = strtolower($planCode) === 'pro';
+                    $planFeatures = is_array($plan['features'] ?? null) ? $plan['features'] : [];
+                    $shopsLimit = (int) ($plan['limite_boutiques'] ?? 0);
+                    $usersLimit = (int) ($plan['limite_utilisateurs'] ?? 0);
+                    $productsLimit = (int) ($plan['limite_produits'] ?? 0);
+                    $price = number_format((float) ($plan['prix_mensuel_usd'] ?? 0), 2, ',', ' ');
+                    $price = str_ends_with($price, ',00') ? substr($price, 0, -3) : $price;
+                    ?>
+                    <article class="public-plan-card <?= $isRecommended ? 'is-featured' : '' ?>">
                         <div class="public-plan-card-head">
                             <div>
-                                <h3><?= htmlspecialchars($plan['name'], ENT_QUOTES, 'UTF-8') ?></h3>
-                                <p><?= htmlspecialchars($plan['tag'], ENT_QUOTES, 'UTF-8') ?></p>
+                                <h3><?= htmlspecialchars((string) ($plan['nom'] ?? 'Plan'), ENT_QUOTES, 'UTF-8') ?></h3>
+                                <p><?= htmlspecialchars(strtoupper($planCode), ENT_QUOTES, 'UTF-8') ?></p>
                             </div>
-                            <?php if ($plan['featured']): ?>
-                                <span>Populaire</span>
+                            <?php if ($isRecommended): ?>
+                                <span>Recommandé</span>
                             <?php endif; ?>
                         </div>
 
                         <div class="public-plan-price">
-                            <strong><?= htmlspecialchars($plan['price'], ENT_QUOTES, 'UTF-8') ?></strong>
-                            <span><?= htmlspecialchars($plan['period'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <strong><?= htmlspecialchars($price . ' $', ENT_QUOTES, 'UTF-8') ?></strong>
+                            <span>/mois</span>
                         </div>
 
                         <ul>
-                            <?php foreach ($plan['features'] as $feature): ?>
-                                <li><?= htmlspecialchars($feature, ENT_QUOTES, 'UTF-8') ?></li>
+                            <li><?= $shopsLimit > 0 ? $shopsLimit . ' boutique' . ($shopsLimit > 1 ? 's' : '') : 'Boutiques illimitees' ?></li>
+                            <li><?= $usersLimit > 0 ? $usersLimit . ' utilisateur' . ($usersLimit > 1 ? 's' : '') : 'Utilisateurs illimites' ?></li>
+                            <li><?= $productsLimit > 0 ? $productsLimit . ' produit' . ($productsLimit > 1 ? 's' : '') : 'Produits illimites' ?></li>
+                            <?php foreach ($planFeatures as $feature): ?>
+                                <li title="<?= htmlspecialchars((string) ($feature['description'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                                    <?= htmlspecialchars((string) ($feature['nom'] ?? $feature['code'] ?? 'Fonctionnalite'), ENT_QUOTES, 'UTF-8') ?>
+                                </li>
                             <?php endforeach; ?>
+                            <?php if ($planFeatures === []): ?><li>Aucune fonctionnalite active configuree</li><?php endif; ?>
                         </ul>
 
-                        <a href="<?= $url('/pricing') ?>">Commencer</a>
+                        <a href="<?= $url('/pricing', ['plan' => $planCode]) ?>">Commencer</a>
                     </article>
                 <?php endforeach; ?>
+                <?php if ($plans === []): ?>
+                    <p class="rounded-xl bg-white p-6 text-sm font-semibold text-slate-600">Aucun plan actif n est disponible pour le moment.</p>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -282,7 +306,11 @@ $faqs = [
                 <p class="public-eyebrow">Accès sécurisé</p>
                 <h2 class="public-section-title">Connectez-vous pour gérer les ventes, le stock, les clients et les rapports de votre boutique.</h2>
             </div>
-            <a class="public-cta-large" href="<?= $url('/login') ?>">Connexion</a>
+            <?php if (!$isAuthenticated): ?>
+                <a class="public-cta-large" href="<?= $url('/login') ?>">Connexion</a>
+            <?php else: ?>
+                <a class="public-cta-large" href="<?= $url('/dashboard') ?>">Accéder à la boutique</a>
+            <?php endif; ?>
         </div>
     </div>
 </section>

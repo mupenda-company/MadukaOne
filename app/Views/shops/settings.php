@@ -4,6 +4,7 @@ $shop = is_array($shop ?? null) ? $shop : [];
 $value = static fn (string $field, string $fallback = ''): string => htmlspecialchars((string) (($shop[$field] ?? '') !== '' ? $shop[$field] : $fallback), ENT_QUOTES, 'UTF-8');
 $exchangeRate = (float) ($shop['taux_change_cdf'] ?? 2800);
 $primaryCurrency = (string) ($shop['devise_principale'] ?? 'USD');
+$shopCategory = (string) ($shop['category_name'] ?? 'Sans categorie');
 
 $icon = static function (string $name): string {
     $paths = [
@@ -21,6 +22,10 @@ $icon = static function (string $name): string {
         <div class="min-w-0">
             <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Administration</p>
             <h1 class="text-3xl font-bold tracking-normal text-slate-950">Parametres de la boutique</h1>
+            <div class="mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                <span class="h-2 w-2 rounded-full bg-blue-500"></span>
+                Categorie : <?= htmlspecialchars($shopCategory, ENT_QUOTES, 'UTF-8') ?>
+            </div>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                 Configurez les informations generales, la devise principale et le taux utilise pour convertir les prix du catalogue.
             </p>
@@ -74,6 +79,10 @@ $icon = static function (string $name): string {
                 </div>
 
                 <div class="mt-5 space-y-4">
+                    <div class="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[.14em] text-blue-500">Categorie de la boutique</p>
+                        <p class="mt-2 font-bold text-blue-950"><?= htmlspecialchars($shopCategory, ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
                     <label class="space-y-2">
                         <span class="text-sm font-semibold text-slate-700">Devise principale</span>
                         <select class="field-control" name="devise_principale" required>
