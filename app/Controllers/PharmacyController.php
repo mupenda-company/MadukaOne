@@ -24,7 +24,7 @@ final class PharmacyController extends AppController
         $products = $this->specialization->pharmacyProducts($this->currentShopId());
 
         $this->render('pharmacy/index', [
-            'pageTitle' => 'Module pharmacie',
+            'pageTitle' => 'Gestion de la pharmacie',
             'activeMenu' => 'pharmacy',
             'products' => $products,
             'stats' => $this->specialization->pharmacyStats($products),
@@ -37,7 +37,7 @@ final class PharmacyController extends AppController
         $product = $this->productFromParams($params);
 
         $this->render('pharmacy/edit', [
-            'pageTitle' => 'Fiche medicament',
+            'pageTitle' => 'Fiche pharmaceutique',
             'activeMenu' => 'pharmacy',
             'product' => $product,
             'details' => $this->specialization->pharmacyDetails((int) $product['id'], $this->currentShopId()),
@@ -50,7 +50,7 @@ final class PharmacyController extends AppController
         $product = $this->productFromParams($params);
 
         $this->specialization->savePharmacy((int) $product['id'], $this->currentShopId(), $_POST);
-        $this->flashSuccess('Fiche medicament mise a jour.');
+        $this->flashSuccess('Fiche pharmaceutique mise à jour.');
         $this->redirect('/pharmacie');
     }
 

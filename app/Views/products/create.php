@@ -1,6 +1,11 @@
 <?php
 
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$isPharmacy = (string) ($activeShop['category_slug'] ?? '') === 'pharmacies';
+$isFashion = (string) ($activeShop['category_slug'] ?? '') === 'magasins-de-vetements';
+$catalogProfile = is_array($productCatalogProfile ?? null) ? $productCatalogProfile : [];
+$itemNoun = (string) ($catalogProfile['unit'] ?? 'produit');
+$catalogReturnPath = (string) ($catalogReturnPath ?? '/products');
 $productCategories = is_array($productCategories ?? null) ? $productCategories : [];
 $nextReference = (string) ($nextReference ?? 'PRD-000001');
 $defaultCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
@@ -10,21 +15,21 @@ $exchangeRate = (float) ($activeShop['taux_change_cdf'] ?? 2800);
 <section class="space-y-5">
     <div class="dashboard-hero">
         <div>
-            <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Catalogue</p>
-            <h1 class="text-3xl font-bold tracking-normal text-slate-950">Ajouter un produit</h1>
+            <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700"><?= htmlspecialchars((string) ($catalogProfile['eyebrow'] ?? 'Catalogue'), ENT_QUOTES, 'UTF-8') ?></p>
+            <h1 class="text-3xl font-bold tracking-normal text-slate-950"><?= htmlspecialchars((string) ($catalogProfile['create_title'] ?? ('Ajouter un ' . $itemNoun)), ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Créez une fiche produit complète avec prix, stock initial et seuil d’alerte minimal.
+                <?= htmlspecialchars((string) ($catalogProfile['create_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
             </p>
         </div>
-        <a class="btn-secondary" href="<?= $url('/products') ?>">Retour à la liste</a>
+        <a class="btn-secondary" href="<?= $url($catalogReturnPath) ?>">Retour à l’espace métier</a>
     </div>
 
     <form class="grid gap-5 xl:grid-cols-[1fr_22rem]" method="post" action="<?= $url('/products') ?>" accept-charset="UTF-8">
         <section class="surface-panel">
             <div class="grid gap-4 sm:grid-cols-2">
                 <label class="block sm:col-span-2">
-                    <span class="mb-2 block text-sm font-semibold text-slate-700">Nom du produit</span>
-                    <input class="field-control" name="nom" type="text" placeholder="Ex. Chargeur rapide USB-C">
+                    <span class="mb-2 block text-sm font-semibold text-slate-700">Nom du <?= $itemNoun ?></span>
+                    <input class="field-control" name="nom" type="text" placeholder="<?= htmlspecialchars((string) ($catalogProfile['item_example'] ?? 'Ex. Produit principal'), ENT_QUOTES, 'UTF-8') ?>">
                 </label>
                 <label class="block">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Référence interne</span>
@@ -36,7 +41,7 @@ $exchangeRate = (float) ($activeShop['taux_change_cdf'] ?? 2800);
                 </label>
                 <div class="block sm:col-span-2">
                     <div class="mb-2 flex items-center justify-between gap-3">
-                        <span class="block text-sm font-semibold text-slate-700">Catégorie du produit</span>
+                        <span class="block text-sm font-semibold text-slate-700">Catégorie de l’article</span>
                         <button class="text-sm font-bold text-teal-700 hover:text-teal-900" type="button" data-product-category-open>Ajouter une catégorie</button>
                     </div>
                     <select class="field-control" name="category_id" data-product-category-select>
@@ -100,16 +105,16 @@ $exchangeRate = (float) ($activeShop['taux_change_cdf'] ?? 2800);
             <div class="mt-5 rounded-lg border border-amber-100 bg-amber-50 p-4 text-sm text-amber-700">
                 Les mouvements de stock réels doivent ensuite passer par le journal de stock pour garder l’audit fiable.
             </div>
-            <button class="btn-primary mt-6" type="submit">Enregistrer le produit</button>
+            <button class="btn-primary mt-6" type="submit">Enregistrer</button>
         </aside>
     </form>
 
     <div class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4" data-product-category-modal>
         <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
             <h2 class="text-lg font-bold text-slate-950">Nouvelle catégorie</h2>
-            <p class="mt-2 text-sm leading-6 text-slate-500">Ajoutez une catégorie et sélectionnez-la directement pour ce produit.</p>
+            <p class="mt-2 text-sm leading-6 text-slate-500">Ajoutez une catégorie adaptée à votre activité et sélectionnez-la directement.</p>
             <div class="mt-4 space-y-3">
-                <input class="field-control" type="text" placeholder="Ex. Boissons" data-product-category-name>
+                <input class="field-control" type="text" placeholder="<?= htmlspecialchars((string) ($catalogProfile['category_example'] ?? 'Ex. Général'), ENT_QUOTES, 'UTF-8') ?>" data-product-category-name>
                 <p class="hidden rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700" data-product-category-error></p>
                 <div class="grid gap-2 sm:grid-cols-2">
                     <button class="btn-secondary" type="button" data-product-category-close>Annuler</button>

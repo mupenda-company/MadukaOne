@@ -9,6 +9,15 @@ $stockLabel = (string) ($profile['stock_label'] ?? 'Stock et inventaire');
 $supplyLabel = (string) ($profile['supply_label'] ?? 'Approvisionnements');
 $customerLabel = (string) ($profile['customer_label'] ?? 'Clients et credits');
 $categorySlug = (string) ($profile['slug'] ?? $activeShop['category_slug'] ?? '');
+$catalogRoutes = [
+    'quincailleries' => '/quincaillerie', 'supermarches' => '/supermarche', 'depots' => '/depot',
+    'papeteries' => '/papeterie', 'librairies' => '/librairie', 'boulangeries' => '/boulangerie',
+    'restaurants' => '/restaurant', 'bars' => '/bar', 'hotels' => '/hotel',
+    'magasins-d-electronique' => '/electronique', 'grossistes' => '/grossiste',
+    'distributeurs' => '/distribution', 'entreprises-commerciales' => '/entreprise-commerciale',
+    'vendeur-forfait-mobile-unites' => '/forfaits-unites',
+];
+$catalogHref = (string) ($catalogRoutes[$categorySlug] ?? '/products');
 $enabledModuleCodes = is_array($enabledModuleCodes ?? null) ? array_map('strval', $enabledModuleCodes) : [];
 $moduleAllowed = static function (?string $moduleCode) use ($enabledModuleCodes): bool {
     return $moduleCode === null || in_array($moduleCode, $enabledModuleCodes, true);
@@ -33,7 +42,7 @@ $navSections = [
     [
         'label' => 'Stock et catalogue',
         'items' => [
-            ['key' => 'products', 'label' => $catalogLabel, 'href' => $url('/products'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'box', 'module' => 'stock'],
+            ['key' => 'products', 'label' => $catalogLabel, 'href' => $url($catalogHref), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'box', 'module' => 'stock'],
             ['key' => 'pharmacy', 'label' => 'Gestion pharmacie', 'href' => $url('/pharmacie'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'medical', 'module' => 'pharmacy', 'category' => 'pharmacies'],
             ['key' => 'fashion', 'label' => 'Gestion vetements', 'href' => $url('/vetements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'tag', 'module' => 'fashion', 'category' => 'magasins-de-vetements'],
             ['key' => 'stock', 'label' => $stockLabel, 'href' => $url('/stock/movements'), 'roles' => ['admin', 'super_admin', 'gerant'], 'icon' => 'stock', 'module' => 'stock'],

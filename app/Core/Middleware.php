@@ -197,6 +197,7 @@ final class Middleware
             '#^/products(/|$)#' => 'stock',
             '#^/(pharmacie|pharmacy)(/|$)#' => 'pharmacy',
             '#^/(vetements|fashion)(/|$)#' => 'fashion',
+            '#^/(quincaillerie|supermarche|depot|papeterie|librairie|boulangerie|restaurant|bar|hotel|electronique|grossiste|distribution|entreprise-commerciale|forfaits-unites)(/|$)#' => 'stock',
             '#^/stock(/|$)#' => 'stock',
             '#^/(supplies|suppliers|fournisseurs)(/|$)#' => 'supplies',
             '#^/(expenses|finances|depenses)(/|$)#' => 'finance',

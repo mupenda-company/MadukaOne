@@ -3,6 +3,13 @@
 $products = is_array($products ?? null) ? $products : [];
 $productCategories = is_array($productCategories ?? null) ? $productCategories : [];
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
+$isPharmacy = (string) ($activeShop['category_slug'] ?? '') === 'pharmacies';
+$isFashion = (string) ($activeShop['category_slug'] ?? '') === 'magasins-de-vetements';
+$catalogProfile = is_array($productCatalogProfile ?? null) ? $productCatalogProfile : [];
+$catalogNoun = (string) ($catalogProfile['unit'] ?? 'produit');
+$catalogPlural = (string) ($catalogProfile['plural'] ?? 'produits');
+$catalogTitle = (string) ($catalogProfile['title'] ?? 'Liste des produits');
+$catalogEyebrow = (string) ($catalogProfile['eyebrow'] ?? 'Catalogue');
 $exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $activeProducts = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1));
 $stockAlerts = count(array_filter($products, static fn (array $product): bool => (int) ($product['actif'] ?? 1) === 1 && (int) $product['quantite_stock'] <= (int) $product['alerte_stock_min']));
@@ -70,10 +77,10 @@ $icon = static function (string $name): string {
 <section class="space-y-5" data-products-page>
     <div class="dashboard-hero">
         <div>
-            <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Catalogue</p>
-            <h1 class="text-3xl font-bold tracking-normal text-slate-950">Liste des produits</h1>
+            <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700"><?= $catalogEyebrow ?></p>
+            <h1 class="text-3xl font-bold tracking-normal text-slate-950"><?= $catalogTitle ?></h1>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Suivez les prix, les références et les seuils d’alerte stock par boutique.
+                <?= htmlspecialchars((string) ($catalogProfile['description'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
             </p>
         </div>
         <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -83,7 +90,7 @@ $icon = static function (string $name): string {
             </button>
             <a class="btn-primary w-full gap-2 sm:w-auto" href="<?= $url('/products/create') ?>">
                 <?= $icon('plus') ?>
-                <span>Ajouter un produit</span>
+                <span><?= htmlspecialchars((string) ($catalogProfile['create_button'] ?? ('Ajouter un ' . $catalogNoun)), ENT_QUOTES, 'UTF-8') ?></span>
             </a>
         </div>
     </div>
@@ -91,7 +98,7 @@ $icon = static function (string $name): string {
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article class="stat-card">
             <div class="flex items-center justify-between gap-3">
-                <p class="text-sm text-slate-500">Produits actifs</p>
+                <p class="text-sm text-slate-500"><?= htmlspecialchars((string) ($catalogProfile['active_label'] ?? 'Produits actifs'), ENT_QUOTES, 'UTF-8') ?></p>
                 <span class="grid h-9 w-9 place-items-center rounded-lg bg-teal-50 text-teal-700"><?= $icon('box') ?></span>
             </div>
             <p class="mt-2 text-2xl font-bold"><?= $activeProducts ?></p>
@@ -124,7 +131,7 @@ $icon = static function (string $name): string {
             <div>
                 <div class="flex items-center gap-2">
                     <span class="grid h-10 w-10 place-items-center rounded-lg bg-teal-50 text-teal-700"><?= $icon('filter') ?></span>
-                    <h2 class="font-bold text-slate-950">Filtres produits</h2>
+                <h2 class="font-bold text-slate-950">Filtres <?= htmlspecialchars($catalogPlural, ENT_QUOTES, 'UTF-8') ?></h2>
                 </div>
                 <p class="mt-2 text-sm text-slate-500">Affinez le catalogue par statut, categorie, stock et niveau de prix.</p>
             </div>
@@ -184,9 +191,9 @@ $icon = static function (string $name): string {
     <section class="surface-panel">
         <div class="panel-header">
             <div>
-                <h2 class="font-bold text-slate-950">Catalogue boutique</h2>
+                <h2 class="font-bold text-slate-950"><?= htmlspecialchars((string) ($catalogProfile['section_title'] ?? 'Catalogue boutique'), ENT_QUOTES, 'UTF-8') ?></h2>
                 <p class="mt-1 text-sm text-slate-500">
-                    <span data-products-count><?= count($products) ?></span> produit(s) affiché(s).
+                    <span data-products-count><?= count($products) ?></span> <?= htmlspecialchars($catalogPlural, ENT_QUOTES, 'UTF-8') ?> affiché(s).
                 </p>
             </div>
             <div class="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 sm:block">
@@ -320,7 +327,7 @@ $icon = static function (string $name): string {
             <h2 class="text-lg font-bold text-slate-950">Nouvelle catégorie</h2>
             <p class="mt-2 text-sm leading-6 text-slate-500">Créez une catégorie sans quitter le catalogue.</p>
             <div class="mt-4 space-y-3">
-                <input class="field-control" type="text" placeholder="Ex. Boissons" data-product-category-name>
+                <input class="field-control" type="text" placeholder="<?= htmlspecialchars((string) ($catalogProfile['category_example'] ?? 'Ex. Général'), ENT_QUOTES, 'UTF-8') ?>" data-product-category-name>
                 <p class="hidden rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700" data-product-category-error></p>
                 <p class="hidden rounded-lg bg-teal-50 p-3 text-sm font-semibold text-teal-700" data-product-category-success></p>
                 <div class="grid gap-2 sm:grid-cols-2">
