@@ -17,19 +17,29 @@ class ExpenseController extends AppController
 
     public function index(array $params = []): void
     {
+        $shop = $this->activeShop($this->shops(), $this->currentUser());
+        $isMobileUnits = ($shop['category_slug'] ?? '') === 'vendeur-forfait-mobile-unites';
+        $expenseCategories = $isMobileUnits
+            ? ['frais_operateur', 'connexion_internet', 'communication', 'maintenance_terminal', 'electricite', 'transport', 'loyer', 'salaire', 'autre']
+            : $this->expenses->categories();
         $filters = $this->filtersFromQuery();
+
+        if ($filters['category'] !== '' && !in_array($filters['category'], $expenseCategories, true)) {
+            $filters['category'] = '';
+        }
         $expenses = array_map(
             static fn (array $expense): array => array_merge($expense, ['user' => $expense['user_name'] ?? '']),
             $this->expenses->allByShop($this->currentShopId(), $filters)
         );
 
         $this->render('expenses/index', [
-            'pageTitle' => 'Charges de la boutique',
+            'pageTitle' => $isMobileUnits ? 'Dépenses télécoms' : 'Charges de la boutique',
             'activeMenu' => 'finances',
             'expenses' => $expenses,
             'availableProfit' => $this->expenses->availableProfitByShop($this->currentShopId()),
-            'expenseCategories' => $this->expenses->categories(),
+            'expenseCategories' => $expenseCategories,
             'filters' => $filters,
+            'isMobileUnits' => $isMobileUnits,
         ]);
     }
 

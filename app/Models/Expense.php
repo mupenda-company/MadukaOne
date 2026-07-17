@@ -221,11 +221,28 @@ final class Expense extends Model
 
     public function categories(): array
     {
-        return ['transport', 'facture', 'loyer', 'salaire', 'perte_avarie', 'autre'];
+        return ['transport', 'facture', 'loyer', 'salaire', 'perte_avarie', 'frais_operateur', 'connexion_internet', 'communication', 'maintenance_terminal', 'electricite', 'autre'];
     }
 
     private function profitSummaryByShop(int $shopId, ?int $excludedExpenseId = null): array
     {
+        $shopStatement = Database::connection()->prepare(
+            'SELECT categories.slug AS category_slug, shops.taux_change_cdf
+             FROM shops
+             LEFT JOIN shop_categories categories ON categories.id = shops.category_id
+             WHERE shops.id = :shop_id LIMIT 1'
+        );
+        $shopStatement->execute(['shop_id' => $shopId]);
+        $shop = $shopStatement->fetch() ?: [];
+
+        if (($shop['category_slug'] ?? '') === 'vendeur-forfait-mobile-unites') {
+            $mobileSales = Database::connection()->prepare(
+                'SELECT COALESCE(SUM(benefice), 0) FROM mobile_sales WHERE shop_id = :shop_id'
+            );
+            $mobileSales->execute(['shop_id' => $shopId]);
+            $rate = max((float) (($shop['taux_change_cdf'] ?? 2800) ?: 2800), 0.0001);
+            $grossMargin = (float) $mobileSales->fetchColumn() / $rate;
+        } else {
         $sales = Database::connection()->prepare(
             "SELECT
                 COALESCE(SUM(sales.total_montant), 0) AS revenue,
@@ -240,6 +257,8 @@ final class Expense extends Model
         );
         $sales->execute(['shop_id' => $shopId]);
         $salesSummary = $sales->fetch() ?: ['revenue' => 0, 'cost' => 0];
+        $grossMargin = (float) $salesSummary['revenue'] - (float) $salesSummary['cost'];
+        }
 
         $expenseSql = 'SELECT COALESCE(SUM(montant), 0) FROM expenses WHERE shop_id = :shop_id AND statut = "active"';
         $expenseParams = ['shop_id' => $shopId];
@@ -252,8 +271,6 @@ final class Expense extends Model
         $expenses = Database::connection()->prepare($expenseSql);
         $expenses->execute($expenseParams);
         $expenseTotal = (float) $expenses->fetchColumn();
-        $grossMargin = (float) $salesSummary['revenue'] - (float) $salesSummary['cost'];
-
         return [
             'gross_margin' => $grossMargin,
             'expenses' => $expenseTotal,

@@ -5,6 +5,7 @@ $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
 $filters = is_array($filters ?? null) ? $filters : [];
 $expenseCategories = is_array($expenseCategories ?? null) ? $expenseCategories : ['transport', 'facture', 'loyer', 'salaire', 'perte_avarie', 'autre'];
 $availableProfit = max(0.0, (float) ($availableProfit ?? 0));
+$isMobileUnits = (bool) ($isMobileUnits ?? false);
 $expenseCurrency = in_array(($activeShop['devise_principale'] ?? 'USD'), ['USD', 'CDF'], true) ? (string) $activeShop['devise_principale'] : 'USD';
 $exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? 2800) ?: 2800);
 $availableProfitInput = $expenseCurrency === 'CDF' ? $availableProfit * $exchangeRate : $availableProfit;
@@ -21,6 +22,11 @@ $categoryLabels = [
     'loyer' => 'Loyer',
     'salaire' => 'Salaire',
     'perte_avarie' => 'Perte ou avarie',
+    'frais_operateur' => 'Frais opérateur',
+    'connexion_internet' => 'Connexion Internet',
+    'communication' => 'Communication et USSD',
+    'maintenance_terminal' => 'Maintenance des terminaux',
+    'electricite' => 'Électricité et énergie',
     'autre' => 'Autre',
 ];
 $safe = static fn ($value, string $fallback = ''): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
@@ -68,15 +74,15 @@ $amountForInput = static function ($value) use ($expenseCurrency, $exchangeRate)
 };
 ?>
 
-<section class="space-y-5">
-    <div class="dashboard-hero">
+<section class="space-y-5" <?= $isMobileUnits ? 'data-mobile-units' : '' ?>>
+    <div class="dashboard-hero <?= $isMobileUnits ? '!border-0 !bg-gradient-to-br !from-indigo-950 !via-violet-900 !to-fuchsia-700 text-white' : '' ?>">
         <div>
-            <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Finances</p>
-            <h1 class="text-3xl font-bold tracking-normal text-slate-950">Charges de la boutique</h1>
-            <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Enregistrez, filtrez, corrigez et annulez les depenses operationnelles.</p>
+            <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] <?= $isMobileUnits ? 'text-cyan-300' : 'text-teal-700' ?>"><?= $isMobileUnits ? 'FINANCES TÉLÉCOM & MOBILE' : 'Finances' ?></p>
+            <h1 class="text-3xl font-bold tracking-normal <?= $isMobileUnits ? 'text-white' : 'text-slate-950' ?>"><?= $isMobileUnits ? 'Dépenses de l’activité mobile' : 'Charges de la boutique' ?></h1>
+            <p class="mt-3 max-w-2xl text-sm leading-6 <?= $isMobileUnits ? 'text-violet-100' : 'text-slate-600' ?>"><?= $isMobileUnits ? 'Suivez les frais opérateurs, communications, connexions et charges nécessaires à la vente d’unités.' : 'Enregistrez, filtrez, corrigez et annulez les dépenses opérationnelles.' ?></p>
         </div>
         <div class="hero-action-panel">
-            <p class="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Depenses actives</p>
+            <p class="text-xs font-semibold uppercase tracking-[.14em] text-slate-400"><?= $isMobileUnits ? 'Charges mobiles actives' : 'Dépenses actives' ?></p>
             <p class="mt-2 text-2xl font-bold text-slate-950"><?= $money($activeExpenseTotal) ?></p>
             <p class="mt-1 text-xs font-semibold text-slate-500">1 USD = <?= number_format($exchangeRate, 2, ',', ' ') ?> CDF</p>
         </div>
@@ -84,9 +90,9 @@ $amountForInput = static function ($value) use ($expenseCurrency, $exchangeRate)
 
     <div class="grid gap-4 md:grid-cols-2">
         <article class="stat-card">
-            <p class="text-sm text-slate-500">Benefice disponible</p>
+            <p class="text-sm text-slate-500"><?= $isMobileUnits ? 'Bénéfice mobile disponible' : 'Bénéfice disponible' ?></p>
             <p class="mt-2 text-2xl font-bold text-emerald-700"><?= $money($availableProfit) ?></p>
-            <p class="mt-1 text-xs font-semibold text-slate-500">Les sorties ne peuvent pas depasser ce solde.</p>
+            <p class="mt-1 text-xs font-semibold text-slate-500"><?= $isMobileUnits ? 'Calculé depuis les bénéfices réels des ventes d’unités, moins les dépenses.' : 'Les sorties ne peuvent pas dépasser ce solde.' ?></p>
         </article>
         <article class="stat-card">
             <p class="text-sm text-slate-500">Charges affichees</p>
@@ -98,12 +104,12 @@ $amountForInput = static function ($value) use ($expenseCurrency, $exchangeRate)
     <div class="grid gap-5 xl:grid-cols-[23rem_1fr]">
         <form class="surface-panel h-fit space-y-4" method="post" action="<?= $url('/expenses') ?>" accept-charset="UTF-8">
             <div>
-                <h2 class="font-bold text-slate-950">Nouvelle depense</h2>
-                <p class="mt-1 text-sm text-slate-500">Saisie rapide pour les charges courantes.</p>
+                <h2 class="font-bold text-slate-950"><?= $isMobileUnits ? 'Nouvelle dépense mobile' : 'Nouvelle dépense' ?></h2>
+                <p class="mt-1 text-sm text-slate-500"><?= $isMobileUnits ? 'Enregistrez une charge liée à l’activité télécom.' : 'Saisie rapide pour les charges courantes.' ?></p>
             </div>
             <label class="block">
                 <span class="mb-2 block text-sm font-semibold text-slate-700">Titre</span>
-                <input class="field-control" name="titre" type="text" placeholder="Ex. Carburant generateur">
+                <input class="field-control" name="titre" type="text" placeholder="<?= $isMobileUnits ? 'Ex. Frais de transfert Airtel' : 'Ex. Carburant générateur' ?>">
             </label>
             <label class="block">
                 <span class="mb-2 block text-sm font-semibold text-slate-700">Categorie</span>

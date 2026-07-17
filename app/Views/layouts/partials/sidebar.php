@@ -72,6 +72,41 @@ $navSections = [
     ],
 ];
 
+if ($categorySlug === 'vendeur-forfait-mobile-unites') {
+    $navSections = [
+        ['label' => 'Pilotage mobile', 'items' => [
+            ['key'=>'dashboard','label'=>'Tableau de bord','href'=>$url('/dashboard'),'roles'=>['admin','super_admin','gerant'],'icon'=>'dashboard'],
+            ['key'=>'mobile-dashboard','label'=>'Vue générale mobile','href'=>$url('/forfaits-unites'),'roles'=>['admin','super_admin','gerant','agent'],'icon'=>'chart','module'=>'stock'],
+        ]],
+        ['label' => 'Ventes d unités', 'items' => [
+            ['key'=>'mobile-sales','label'=>'Nouvelle vente','href'=>$url('/forfaits-unites/ventes'),'roles'=>['admin','super_admin','gerant','agent'],'icon'=>'pos','module'=>'stock'],
+            ['key'=>'mobile-sales-history','label'=>'Historique et exports','href'=>$url('/forfaits-unites/historique'),'roles'=>['admin','super_admin','gerant','agent'],'icon'=>'receipt','module'=>'stock'],
+        ]],
+        ['label' => 'Catalogue mobile', 'items' => [
+            ['key'=>'mobile-operators','label'=>'Opérateurs','href'=>$url('/forfaits-unites/operateurs'),'roles'=>['admin','super_admin','gerant'],'icon'=>'users','module'=>'stock'],
+            ['key'=>'mobile-products','label'=>'Produits et forfaits','href'=>$url('/forfaits-unites/produits'),'roles'=>['admin','super_admin','gerant'],'icon'=>'box','module'=>'stock'],
+            ['key'=>'mobile-stock','label'=>'Stock virtuel','href'=>$url('/forfaits-unites/stock'),'roles'=>['admin','super_admin','gerant'],'icon'=>'stock','module'=>'stock'],
+        ]],
+        ['label' => 'Achats mobiles', 'items' => [
+            ['key'=>'mobile-supplies','label'=>'Approvisionnements','href'=>$url('/forfaits-unites/approvisionnements'),'roles'=>['admin','super_admin','gerant'],'icon'=>'truck','module'=>'stock'],
+            ['key'=>'suppliers','label'=>'Fournisseurs','href'=>$url('/suppliers'),'roles'=>['admin','super_admin','gerant'],'icon'=>'handshake','module'=>'supplies'],
+        ]],
+        ['label' => 'Mobile Money', 'items' => [
+            ['key'=>'money-accounts','label'=>'Comptes opérateurs','href'=>$url('/forfaits-unites/mobile-money/comptes'),'roles'=>['admin','super_admin','gerant'],'icon'=>'subscription','module'=>'stock'],
+            ['key'=>'money-transactions','label'=>'Transactions','href'=>$url('/forfaits-unites/mobile-money/transactions'),'roles'=>['admin','super_admin','gerant','agent'],'icon'=>'receipt','module'=>'stock'],
+            ['key'=>'money-commissions','label'=>'Commissions','href'=>$url('/forfaits-unites/mobile-money/commissions'),'roles'=>['admin','super_admin','gerant'],'icon'=>'chart','module'=>'stock'],
+            ['key'=>'money-cash','label'=>'Caisse','href'=>$url('/forfaits-unites/mobile-money/caisse'),'roles'=>['admin','super_admin','gerant','agent'],'icon'=>'pos','module'=>'stock'],
+            ['key'=>'money-accounting','label'=>'Comptabilité','href'=>$url('/forfaits-unites/mobile-money/comptabilite'),'roles'=>['admin','super_admin','gerant'],'icon'=>'finance','module'=>'finance'],
+        ]],
+        ['label' => 'Administration', 'items' => [
+            ['key'=>'finances','label'=>'Dépenses et finances','href'=>$url('/finances'),'roles'=>['admin','super_admin'],'icon'=>'finance','module'=>'finance'],
+            ['key'=>'shop_subscription','label'=>'Abonnement boutique','href'=>$url('/shops/subscription'),'roles'=>['admin','super_admin','gerant'],'icon'=>'subscription'],
+            ['key'=>'users','label'=>'Utilisateurs','href'=>$url('/users'),'roles'=>['admin','super_admin'],'icon'=>'shield'],
+            ['key'=>'shop_settings','label'=>'Paramètres boutique','href'=>$url('/shops/settings'),'roles'=>['admin','super_admin','gerant'],'icon'=>'settings'],
+        ]],
+    ];
+}
+
 $icon = static function (string $name): string {
     $paths = [
         'dashboard' => '<path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z" fill="currentColor"/>',
