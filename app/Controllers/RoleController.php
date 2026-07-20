@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/AppController.php';
 require_once dirname(__DIR__) . '/Models/Role.php';
+require_once dirname(__DIR__) . '/Core/ModuleRegistry.php';
+require_once dirname(__DIR__) . '/Core/SubscriptionGate.php';
 
 class RoleController extends AppController
 {
@@ -29,11 +31,15 @@ class RoleController extends AppController
     public function create(array $params = []): void
     {
         $roles = $this->roles->allWithUsage();
+        $shopId = $this->currentShopId();
+        $planModules = (new ModuleRegistry())->enabledForShop($shopId);
 
         $this->render('users/role-create', [
             'pageTitle' => 'Ajouter un role',
             'activeMenu' => 'roles',
-            'permissionGroups' => $this->permissionGroups(),
+            'permissionGroups' => $this->permissionGroups($planModules),
+            'planModules' => $planModules,
+            'planSubscription' => (new SubscriptionGate())->currentForShop($shopId),
             'roles' => $roles,
             'roleStats' => $this->roleStats($roles),
         ]);
@@ -58,7 +64,8 @@ class RoleController extends AppController
             $this->redirect('/roles/create');
         }
 
-        $permissions = $this->permissionsPayload($_POST['permissions'] ?? []);
+        $planModules = (new ModuleRegistry())->enabledForShop($this->currentShopId());
+        $permissions = $this->permissionsPayload($_POST['permissions'] ?? [], $planModules);
 
         try {
             $this->roles->create([
@@ -110,12 +117,12 @@ class RoleController extends AppController
         return array_keys(array_filter($decoded, static fn ($value): bool => (bool) $value));
     }
 
-    private function permissionsPayload(mixed $selectedPermissions): array
+    private function permissionsPayload(mixed $selectedPermissions, array $planModules): array
     {
         $selectedPermissions = is_array($selectedPermissions) ? $selectedPermissions : [];
         $allowed = [];
 
-        foreach ($this->permissionGroups() as $group) {
+        foreach ($this->permissionGroups($planModules) as $group) {
             foreach ($group['items'] as $permission => $label) {
                 $allowed[$permission] = true;
             }
@@ -134,34 +141,50 @@ class RoleController extends AppController
         return $payload;
     }
 
-    private function permissionGroups(): array
+    private function permissionGroups(array $planModules): array
     {
-        return [
+        $groups = [
             [
                 'label' => 'Pilotage',
                 'items' => [
-                    'all' => 'Acces complet',
-                    'sales_view' => 'Voir les ventes',
-                    'reports_view' => 'Voir les rapports',
+                    'sales_view' => ['label' => 'Voir les ventes', 'modules' => ['pos']],
+                    'reports_view' => ['label' => 'Voir les rapports', 'modules' => ['reports']],
                 ],
             ],
             [
                 'label' => 'Operations',
                 'items' => [
-                    'pos_access' => 'Acceder a la caisse POS',
-                    'products_manage' => 'Gerer les produits',
-                    'stock_adjust' => 'Ajuster le stock',
-                    'supplies_manage' => 'Gerer les approvisionnements',
+                    'pos_access' => ['label' => 'Acceder a la caisse POS', 'modules' => ['pos']],
+                    'products_manage' => ['label' => 'Gerer les produits', 'modules' => ['stock']],
+                    'stock_adjust' => ['label' => 'Ajuster le stock', 'modules' => ['stock']],
+                    'supplies_manage' => ['label' => 'Gerer les approvisionnements', 'modules' => ['supplies']],
                 ],
             ],
             [
                 'label' => 'Administration',
                 'items' => [
-                    'expenses_add' => 'Ajouter des depenses',
-                    'users_manage' => 'Gerer les utilisateurs',
-                    'roles_manage' => 'Gerer les roles et permissions',
+                    'expenses_add' => ['label' => 'Ajouter des depenses', 'modules' => ['finance']],
                 ],
             ],
         ];
+
+        $enabledCodes = array_fill_keys(array_map(static fn (array $module): string => (string) ($module['code'] ?? ''), $planModules), true);
+        $result = [];
+        foreach ($groups as $group) {
+            $items = [];
+            foreach ($group['items'] as $permission => $definition) {
+                foreach ($definition['modules'] as $moduleCode) {
+                    if (isset($enabledCodes[$moduleCode])) {
+                        $items[$permission] = $definition['label'];
+                        break;
+                    }
+                }
+            }
+            if ($items !== []) {
+                $result[] = ['label' => $group['label'], 'items' => $items];
+            }
+        }
+
+        return $result;
     }
 }

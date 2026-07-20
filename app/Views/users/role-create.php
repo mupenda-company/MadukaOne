@@ -3,6 +3,8 @@
 $permissionGroups = is_array($permissionGroups ?? null) ? $permissionGroups : [];
 $roles = is_array($roles ?? null) ? $roles : [];
 $roleStats = is_array($roleStats ?? null) ? $roleStats : [];
+$planModules = is_array($planModules ?? null) ? $planModules : [];
+$planSubscription = is_array($planSubscription ?? null) ? $planSubscription : null;
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 
 $permissionItems = static function ($rawPermissions): array {
@@ -40,7 +42,7 @@ $icon = static function (string $name): string {
             <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Administration</p>
             <h1 class="text-3xl font-bold tracking-normal text-slate-950">Ajouter un role</h1>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Creez un profil d'acces et selectionnez les permissions qui seront stockees dans la table roles.
+                Créez un profil d’accès avec uniquement les permissions disponibles dans le plan d’abonnement actif.
             </p>
         </div>
         <a class="btn-secondary gap-2" href="<?= $url('/roles') ?>">
@@ -66,8 +68,12 @@ $icon = static function (string $name): string {
                 </label>
 
                 <div>
-                    <p class="text-sm font-semibold text-slate-700">Permissions</p>
-                    <p class="mt-1 text-sm text-slate-500">Selectionnez uniquement les acces necessaires pour ce role.</p>
+                    <div class="flex flex-col gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div><p class="text-xs font-bold uppercase tracking-[.12em] text-blue-600">Plan en cours</p><p class="mt-1 font-black text-blue-950"><?= $safe($planSubscription['plan_name'] ?? 'Aucun plan actif') ?></p></div>
+                        <span class="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-bold text-blue-700"><?= count($planModules) ?> module(s) actif(s)</span>
+                    </div>
+                    <p class="mt-5 text-sm font-semibold text-slate-700">Permissions du plan</p>
+                    <p class="mt-1 text-sm text-slate-500">La liste est générée depuis les fonctionnalités réellement attribuées à l’abonnement.</p>
 
                     <div class="mt-4 grid gap-4 lg:grid-cols-3">
                         <?php foreach ($permissionGroups as $group): ?>
@@ -87,6 +93,7 @@ $icon = static function (string $name): string {
                             </fieldset>
                         <?php endforeach; ?>
                     </div>
+                    <?php if ($permissionGroups === []): ?><div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Aucune permission n’est disponible. Vérifiez le statut de l’abonnement et les fonctionnalités attribuées à son plan.</div><?php endif; ?>
                 </div>
             </div>
         </section>
@@ -96,9 +103,9 @@ $icon = static function (string $name): string {
                 <div class="flex items-start gap-3">
                     <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700"><?= $icon('key') ?></span>
                     <div>
-                        <h2 class="font-bold text-slate-950">Format stocke</h2>
+                        <h2 class="font-bold text-slate-950">Contrôle du plan</h2>
                         <p class="mt-1 text-sm leading-6 text-slate-500">
-                            Les permissions cochees seront enregistrees en JSON sous la forme <strong>permission: true</strong>.
+                            Le serveur refuse automatiquement toute permission qui ne fait pas partie des modules du plan actif.
                         </p>
                     </div>
                 </div>

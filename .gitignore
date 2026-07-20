@@ -4,3 +4,7 @@
 
 node_modules/
 vendor/
+
+public/error_log
+error_log
+*.log
