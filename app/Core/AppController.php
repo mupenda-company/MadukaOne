@@ -28,6 +28,7 @@ abstract class AppController
             (int) ($currentUser['id'] ?? 0),
             (int) ($activeShop['id'] ?? 0)
         );
+        $canManageShops = $data['canManageShops'] ?? $this->shopContext($currentUser)->canManageShops();
         $enabledModules = $data['enabledModules'] ?? $this->enabledModules((int) ($activeShop['id'] ?? 0));
         $enabledModuleCodes = $data['enabledModuleCodes'] ?? array_values(array_map(
             static fn (array $module): string => (string) ($module['code'] ?? ''),
@@ -42,6 +43,7 @@ abstract class AppController
             'businessSettings' => $businessSettings,
             'subscriptionSummary' => $subscriptionSummary,
             'shopAllowance' => $shopAllowance,
+            'canManageShops' => $canManageShops,
             'enabledModules' => $enabledModules,
             'enabledModuleCodes' => $enabledModuleCodes,
         ]);

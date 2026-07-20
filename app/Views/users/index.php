@@ -5,7 +5,9 @@ $userStats = is_array($userStats ?? null) ? $userStats : [];
 $currentUserId = (int) ($currentUser['id'] ?? 0);
 $flashSuccess = $_SESSION['flash_success'] ?? null;
 $flashError = $_SESSION['flash_error'] ?? null;
+$resetCredentials = $_SESSION['flash']['reset_credentials'] ?? null;
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+unset($_SESSION['flash']['reset_credentials']);
 
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 $dateLabel = static function ($value): string {
@@ -52,6 +54,7 @@ $icon = static function (string $name): string {
         'ban' => '<path d="M5 5 19 19M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
         'check' => '<path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         'trash' => '<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        'key' => '<path d="M15 7a5 5 0 1 0-3.8 4.85L13 13.65V16h2.35v2H18v-2.35l2.15-2.15-4.3-4.3A5 5 0 0 0 15 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 7h.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>',
     ];
 
     return '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">' . ($paths[$name] ?? $paths['users']) . '</svg>';
@@ -215,37 +218,69 @@ $icon = static function (string $name): string {
                             >
                                 <?= $icon('edit') ?>
                             </a>
+                            <?php if (!$isCurrentUser): ?>
+                                <form method="post" action="<?= $url('/users/' . $userId . '/reset-password') ?>">
+                                    <button
+                                        class="grid h-9 w-9 place-items-center rounded-lg border border-violet-100 bg-violet-50 text-violet-700 transition hover:bg-violet-100 focus:outline-none focus:ring-4 focus:ring-violet-100"
+                                        type="button"
+                                        title="Réinitialiser le mot de passe"
+                                        aria-label="Réinitialiser le mot de passe de <?= $safe($name) ?>"
+                                        data-confirm
+                                        data-confirm-title="Réinitialiser le mot de passe ?"
+                                        data-confirm-message="Un nouveau mot de passe temporaire sera généré pour <?= $safe($name) ?>. L’ancien mot de passe cessera immédiatement de fonctionner."
+                                        data-confirm-accept="Oui, réinitialiser"
+                                        data-confirm-progress="Génération en cours..."
+                                    >
+                                        <?= $icon('key') ?>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                             <?php if (!$active): ?>
-                                <form method="post" action="<?= $url('/admin/users/activate/' . $userId) ?>" onsubmit="return confirm('Voulez-vous activer cet utilisateur ?')">
+                                <form method="post" action="<?= $url('/admin/users/activate/' . $userId) ?>">
                                     <button
                                         class="grid h-9 w-9 place-items-center rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-                                        type="submit"
+                                        type="button"
                                         title="Activer l'utilisateur"
                                         aria-label="Activer l'utilisateur <?= $safe($name) ?>"
+                                        data-confirm
+                                        data-confirm-title="Activer cet utilisateur ?"
+                                        data-confirm-message="<?= $safe($name) ?> pourra de nouveau se connecter et accéder à son espace utilisateur selon son rôle et ses permissions."
+                                        data-confirm-accept="Oui, activer"
+                                        data-confirm-progress="Activation en cours..."
                                     >
                                         <?= $icon('check') ?>
                                     </button>
                                 </form>
                             <?php endif; ?>
                             <?php if ($active && !$isCurrentUser): ?>
-                                <form method="post" action="<?= $url('/admin/users/deactivate/' . $userId) ?>" onsubmit="return confirm('Voulez-vous désactiver cet utilisateur ?')">
+                                <form method="post" action="<?= $url('/admin/users/deactivate/' . $userId) ?>">
                                     <button
                                         class="grid h-9 w-9 place-items-center rounded-lg border border-amber-100 bg-amber-50 text-amber-700 transition hover:bg-amber-100 focus:outline-none focus:ring-4 focus:ring-amber-100"
-                                        type="submit"
+                                        type="button"
                                         title="Désactiver l'utilisateur"
                                         aria-label="Désactiver l'utilisateur <?= $safe($name) ?>"
+                                        data-confirm
+                                        data-confirm-title="Désactiver cet utilisateur ?"
+                                        data-confirm-message="<?= $safe($name) ?> ne pourra plus se connecter ni accéder à son espace jusqu’à sa réactivation. Ses données et son historique seront conservés."
+                                        data-confirm-accept="Oui, désactiver"
+                                        data-confirm-progress="Désactivation en cours..."
                                     >
                                         <?= $icon('ban') ?>
                                     </button>
                                 </form>
                             <?php endif; ?>
                             <?php if (!$isCurrentUser): ?>
-                                <form method="post" action="<?= $url('/admin/users/delete/' . $userId) ?>" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur ?')">
+                                <form method="post" action="<?= $url('/admin/users/delete/' . $userId) ?>">
                                     <button
                                         class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
-                                        type="submit"
+                                        type="button"
                                         title="Supprimer définitivement l'utilisateur"
                                         aria-label="Supprimer définitivement l'utilisateur <?= $safe($name) ?>"
+                                        data-confirm
+                                        data-confirm-title="Supprimer définitivement ?"
+                                        data-confirm-message="Le compte de <?= $safe($name) ?> sera supprimé définitivement. Cette opération est irréversible et peut être refusée si l’utilisateur possède déjà des opérations liées."
+                                        data-confirm-accept="Oui, supprimer"
+                                        data-confirm-progress="Suppression en cours..."
                                     >
                                         <?= $icon('trash') ?>
                                     </button>
@@ -323,6 +358,57 @@ $icon = static function (string $name): string {
     </div>
 </div>
 
+<?php if (is_array($resetCredentials)): ?>
+    <?php
+    $resetEmployee = trim((string) ($resetCredentials['employee'] ?? '')) ?: 'Utilisateur';
+    $resetEmail = (string) ($resetCredentials['email'] ?? '');
+    $resetPassword = (string) ($resetCredentials['password'] ?? '');
+    $loginUrl = $url('/login');
+    ?>
+    <div class="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-slate-950/65 px-4 py-6 backdrop-blur-sm" data-password-result-modal role="dialog" aria-modal="true" aria-labelledby="password-result-title">
+        <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-white/80 bg-white shadow-2xl shadow-slate-950/30" data-password-result-panel tabindex="-1">
+            <div class="bg-gradient-to-br from-violet-700 via-indigo-700 to-slate-950 px-6 py-6 text-white">
+                <div class="flex items-start gap-4">
+                    <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/15 text-violet-100"><?= $icon('key') ?></span>
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[.18em] text-violet-200">Nouveaux identifiants</p>
+                        <h2 class="mt-2 text-xl font-bold" id="password-result-title">Mot de passe réinitialisé</h2>
+                        <p class="mt-1 text-sm text-violet-100"><?= $safe($resetEmployee) ?> peut maintenant utiliser ces identifiants.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4 p-6">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Adresse email</p>
+                    <div class="mt-2 flex items-center gap-3">
+                        <code class="min-w-0 flex-1 break-all font-bold text-slate-950"><?= $safe($resetEmail) ?></code>
+                        <button class="btn-secondary h-9 shrink-0 px-3 text-xs" type="button" data-copy-value="<?= $safe($resetEmail) ?>">Copier</button>
+                    </div>
+                </div>
+                <div class="rounded-xl border border-violet-200 bg-violet-50 p-4">
+                    <p class="text-xs font-bold uppercase tracking-[.14em] text-violet-500">Nouveau mot de passe</p>
+                    <div class="mt-2 flex items-center gap-3">
+                        <code class="min-w-0 flex-1 break-all text-lg font-black tracking-wide text-violet-950"><?= $safe($resetPassword) ?></code>
+                        <button class="btn-secondary h-9 shrink-0 border-violet-200 px-3 text-xs" type="button" data-copy-value="<?= $safe($resetPassword) ?>">Copier</button>
+                    </div>
+                </div>
+                <p class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                    Ce mot de passe n’est affiché qu’une seule fois. Copiez-le avant de fermer cette fenêtre.
+                </p>
+                <div class="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
+                    <button class="btn-secondary w-full sm:w-auto" type="button" data-password-result-close>Fermer</button>
+                    <button
+                        class="btn-primary w-full sm:w-auto"
+                        type="button"
+                        data-copy-value="<?= $safe("Connexion MadukaOne\nAdresse : " . $loginUrl . "\nEmail : " . $resetEmail . "\nMot de passe : " . $resetPassword) ?>"
+                    >Copier tous les identifiants</button>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var page = document.querySelector('[data-users-page]');
@@ -337,6 +423,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var previewPanel = document.querySelector('[data-user-preview-panel]');
     var previewEdit = document.querySelector('[data-user-preview-edit]');
     var previewStatusBadge = document.querySelector('[data-user-preview-status-badge]');
+    var passwordModal = document.querySelector('[data-password-result-modal]');
+    var passwordPanel = document.querySelector('[data-password-result-panel]');
 
     var setPreviewText = function (key, value) {
         var target = document.querySelector('[data-user-preview-' + key + ']');
@@ -392,9 +480,44 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    var closePasswordModal = function () {
+        passwordModal?.classList.add('hidden');
+        passwordModal?.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+    };
+
+    document.querySelectorAll('[data-password-result-close]').forEach(function (button) {
+        button.addEventListener('click', closePasswordModal);
+    });
+    passwordModal?.addEventListener('click', function (event) {
+        if (event.target === passwordModal) {
+            closePasswordModal();
+        }
+    });
+    document.querySelectorAll('[data-copy-value]').forEach(function (button) {
+        button.addEventListener('click', async function () {
+            var value = button.getAttribute('data-copy-value') || '';
+            try {
+                await navigator.clipboard.writeText(value);
+                var original = button.textContent;
+                button.textContent = 'Copié';
+                window.setTimeout(function () { button.textContent = original; }, 1600);
+            } catch (error) {
+                window.prompt('Copiez les identifiants :', value);
+            }
+        });
+    });
+    if (passwordModal) {
+        document.body.classList.add('overflow-hidden');
+        window.setTimeout(function () { passwordPanel?.focus(); }, 0);
+    }
+
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape' && previewModal && !previewModal.classList.contains('hidden')) {
             closePreview();
+        }
+        if (event.key === 'Escape' && passwordModal && !passwordModal.classList.contains('hidden')) {
+            closePasswordModal();
         }
     });
 

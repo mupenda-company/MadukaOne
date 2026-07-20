@@ -10,6 +10,7 @@ $canCreateShop = (bool) ($shopAllowance['can_create'] ?? false);
 $remainingShops = $shopAllowance['remaining'] ?? 0;
 $shopLimit = $shopAllowance['limit'] ?? null;
 $nextPlan = is_array($shopAllowance['next_plan'] ?? null) ? $shopAllowance['next_plan'] : null;
+$canManageShops = (bool) ($canManageShops ?? false);
 ?>
 <header class="app-topbar sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
     <div class="topbar-row flex min-h-16 items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
@@ -33,6 +34,7 @@ $nextPlan = is_array($shopAllowance['next_plan'] ?? null) ? $shopAllowance['next
         </div>
 
         <div class="topbar-actions flex min-w-0 items-center justify-end gap-2 sm:gap-3">
+            <?php if ($canManageShops): ?>
             <div class="shop-menu relative" data-shop-menu>
                 <button class="shop-switcher" type="button" aria-label="Changer de boutique" aria-expanded="false" aria-haspopup="menu" data-shop-menu-toggle>
                     <span class="hidden max-w-44 truncate sm:inline"><?= htmlspecialchars($activeShopName, ENT_QUOTES, 'UTF-8') ?></span>
@@ -99,8 +101,11 @@ $nextPlan = is_array($shopAllowance['next_plan'] ?? null) ? $shopAllowance['next
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
 
-            <div class="hidden h-9 w-px bg-slate-200 sm:block"></div>
+            <?php if ($canManageShops): ?>
+                <div class="hidden h-9 w-px bg-slate-200 sm:block"></div>
+            <?php endif; ?>
 
             <div class="user-menu relative" data-user-menu>
                 <button class="user-menu-trigger" type="button" data-user-menu-toggle aria-expanded="false" aria-haspopup="menu">

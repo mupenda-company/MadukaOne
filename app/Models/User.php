@@ -307,6 +307,42 @@ final class User extends Model
         }
     }
 
+    public function createEmployeeWithPassword(array $data): int
+    {
+        $nom = trim((string) ($data['nom'] ?? ''));
+        $prenom = trim((string) ($data['prenom'] ?? ''));
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
+        $password = (string) ($data['password'] ?? '');
+        $roleId = $this->nullablePositiveInt($data['role_id'] ?? null);
+        $shopId = $this->nullablePositiveInt($data['shop_id'] ?? null);
+
+        if ($nom === '' || $prenom === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false || $password === '' || $roleId === null || $shopId === null) {
+            throw new InvalidArgumentException('Donnees employe invalides.');
+        }
+
+        $statement = Database::connection()->prepare(
+            "INSERT INTO users (
+                shop_id, role_id, prenom, nom, email, telephone, password_hash, auth_provider,
+                google_id, apple_id, invitation_code, role_legacy, actif
+             ) VALUES (
+                :shop_id, :role_id, :prenom, :nom, :email, :telephone, :password_hash, 'local',
+                NULL, NULL, NULL, :role_legacy, 1
+             )"
+        );
+        $statement->execute([
+            'shop_id' => $shopId,
+            'role_id' => $roleId,
+            'prenom' => $prenom,
+            'nom' => $nom,
+            'email' => $email,
+            'telephone' => $this->nullableString($data['telephone'] ?? null),
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'role_legacy' => $this->legacyRoleForRoleId($roleId),
+        ]);
+
+        return (int) Database::connection()->lastInsertId();
+    }
+
     public function updateByShop(int $id, int $shopId, array $data): bool
     {
         $statement = Database::connection()->prepare(
@@ -391,6 +427,27 @@ final class User extends Model
 
         $statement = Database::connection()->prepare('UPDATE users SET actif = 0 WHERE id = :id');
         $statement->execute(['id' => $id]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function activateByShop(int $id, int $shopId): bool
+    {
+        if ($id < 1 || $shopId < 1) {
+            throw new InvalidArgumentException('Utilisateur ou boutique invalide.');
+        }
+
+        $statement = Database::connection()->prepare(
+            'UPDATE users
+             SET actif = 1
+             WHERE id = :id
+               AND shop_id = :shop_id
+               AND actif = 0'
+        );
+        $statement->execute([
+            'id' => $id,
+            'shop_id' => $shopId,
+        ]);
 
         return $statement->rowCount() > 0;
     }

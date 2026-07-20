@@ -69,8 +69,8 @@ class UserController extends AppController
             $roleId = (int) ($_POST['role_id'] ?? 0);
             $shopId = $this->currentShopId();
 
-            if ($nom === '' || $prenom === '' || $roleId < 1 || $shopId < 1) {
-                $this->flashError('Veuillez renseigner le prenom, le nom et le role.');
+            if ($nom === '' || $prenom === '' || $email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false || $roleId < 1 || $shopId < 1) {
+                $this->flashError('Veuillez renseigner le prenom, le nom, un email valide et le role.');
                 $this->redirect('/users/create');
             }
 
@@ -85,27 +85,51 @@ class UserController extends AppController
                 $this->redirect('/users/create');
             }
 
-            $invitationCode = $this->generateInvitationCode();
-            $created = $this->users->createWithInvitation([
+            $temporaryPassword = $this->generateTemporaryPassword();
+            $userId = $this->users->createEmployeeWithPassword([
                 'nom' => $nom,
                 'prenom' => $prenom,
                 'email' => $email,
                 'telephone' => $telephone,
                 'role_id' => $roleId,
                 'shop_id' => $shopId,
-                'invitation_code' => $invitationCode,
+                'password' => $temporaryPassword,
             ]);
 
-            if (!$created) {
+            if ($userId < 1) {
                 throw new RuntimeException('Insertion employe echouee.');
             }
 
-            $_SESSION['flash']['success_code'] = $invitationCode;
+            $_SESSION['flash']['created_credentials'] = [
+                'email' => strtolower($email),
+                'password' => $temporaryPassword,
+                'employee' => trim($prenom . ' ' . $nom),
+            ];
             $this->redirect('/users/create');
         } catch (Throwable) {
             $this->flashError('Creation impossible. Verifiez les informations puis reessayez.');
             $this->redirect('/users/create');
         }
+    }
+
+    private function generateTemporaryPassword(): string
+    {
+        $upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        $lower = 'abcdefghijkmnopqrstuvwxyz';
+        $digits = '23456789';
+        $symbols = '!@#$%';
+        $all = $upper . $lower . $digits . $symbols;
+        $characters = [
+            $upper[random_int(0, strlen($upper) - 1)],
+            $lower[random_int(0, strlen($lower) - 1)],
+            $digits[random_int(0, strlen($digits) - 1)],
+            $symbols[random_int(0, strlen($symbols) - 1)],
+        ];
+        while (count($characters) < 12) {
+            $characters[] = $all[random_int(0, strlen($all) - 1)];
+        }
+        shuffle($characters);
+        return implode('', $characters);
     }
 
     public function edit(array $params = []): void
@@ -264,7 +288,12 @@ class UserController extends AppController
                 $this->redirect('/users');
             }
 
-            if (!$this->users->activateUser($id)) {
+            if ((int) ($user['actif'] ?? 0) === 1) {
+                $this->flashSuccess('Cet utilisateur est déjà actif.');
+                $this->redirect('/users');
+            }
+
+            if (!$this->users->activateByShop($id, $shopId)) {
                 throw new RuntimeException('Activation utilisateur echouee.');
             }
 
@@ -274,6 +303,51 @@ class UserController extends AppController
             $this->flashError('Activation impossible. Veuillez reessayer.');
             $this->redirect('/users');
         }
+    }
+
+    public function resetPassword(array $params = []): void
+    {
+        $this->startSession();
+
+        if (!$this->shopContext($this->currentUser())->canManageShops()) {
+            $this->flashError('Accès refusé : seuls le gérant ou l’administrateur peuvent réinitialiser un mot de passe.');
+            $this->redirect('/dashboard');
+        }
+
+        $id = (int) ($params['id'] ?? 0);
+        $shopId = $this->currentShopId();
+
+        try {
+            $user = $this->users->findByIdAndShop($id, $shopId);
+
+            if ($user === null) {
+                throw new RuntimeException('Utilisateur introuvable pour cette boutique.');
+            }
+
+            if ($id === (int) ($this->currentUser()['id'] ?? 0)) {
+                throw new RuntimeException('Utilisez votre profil pour modifier votre propre mot de passe.');
+            }
+
+            $email = trim((string) ($user['email'] ?? ''));
+            if ($email === '') {
+                throw new RuntimeException('Cet utilisateur ne possède aucune adresse email de connexion.');
+            }
+
+            $temporaryPassword = $this->generateTemporaryPassword();
+            if (!$this->users->updatePassword($id, $temporaryPassword, $shopId)) {
+                throw new RuntimeException('Le mot de passe n’a pas pu être mis à jour.');
+            }
+
+            $_SESSION['flash']['reset_credentials'] = [
+                'employee' => trim((string) (($user['prenom'] ?? '') . ' ' . ($user['nom'] ?? ''))),
+                'email' => strtolower($email),
+                'password' => $temporaryPassword,
+            ];
+        } catch (Throwable $exception) {
+            $this->flashError('Réinitialisation impossible : ' . $exception->getMessage());
+        }
+
+        $this->redirect('/users');
     }
 
     public function profile(array $params = []): void

@@ -93,10 +93,12 @@ final class ShopContext
         }
 
         $shops = $this->shops();
+        $userShopId = (int) ($this->currentUser['shop_id'] ?? 0);
         $requestedShopId = filter_input(INPUT_GET, 'shop_id', FILTER_VALIDATE_INT) ?: null;
         $sessionShopId = isset($_SESSION['current_shop_id']) ? (int) $_SESSION['current_shop_id'] : null;
-        $userShopId = (int) ($this->currentUser['shop_id'] ?? 0);
-        $preferredShopId = $requestedShopId ?: $sessionShopId ?: $userShopId;
+        $preferredShopId = $this->canManageShops()
+            ? ($requestedShopId ?: $sessionShopId ?: $userShopId)
+            : $userShopId;
 
         foreach ($shops as $shop) {
             if ((int) ($shop['id'] ?? 0) === $preferredShopId) {
@@ -125,6 +127,20 @@ final class ShopContext
         }
 
         return false;
+    }
+
+    public function canManageShops(): bool
+    {
+        if (!empty($this->currentUser['is_saas_admin'])) {
+            return true;
+        }
+
+        $role = strtolower(trim((string) ($this->currentUser['role'] ?? '')));
+        $roleName = strtolower(trim((string) ($this->currentUser['role_name'] ?? '')));
+        $roleName = str_replace(['-', ' '], '_', $roleName);
+
+        return in_array($role, ['admin', 'gerant'], true)
+            || in_array($roleName, ['admin', 'administrateur', 'gerant', 'gérant', 'manager', 'super_admin', 'super_administrateur'], true);
     }
 
     private function canAccessAllShops(): bool

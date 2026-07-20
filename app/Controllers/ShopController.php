@@ -16,6 +16,7 @@ class ShopController extends AppController
 
     public function create(array $params = []): void
     {
+        $this->guardShopManagement();
         $shopId = $this->currentShopId();
         $allowance = (new SubscriptionGate())->shopAllowanceForUser($this->currentUserId(), $shopId);
 
@@ -34,6 +35,7 @@ class ShopController extends AppController
 
     public function store(array $params = []): void
     {
+        $this->guardShopManagement();
         $shopId = $this->currentShopId();
         $userId = $this->currentUserId();
         $gate = new SubscriptionGate();
@@ -157,5 +159,15 @@ class ShopController extends AppController
         }
 
         return null;
+    }
+
+    private function guardShopManagement(): void
+    {
+        if ($this->shopContext($this->currentUser())->canManageShops()) {
+            return;
+        }
+
+        $this->flashError('Accès refusé : seuls le gérant ou l’administrateur peuvent gérer les boutiques.');
+        $this->redirect('/dashboard');
     }
 }
