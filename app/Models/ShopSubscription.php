@@ -51,6 +51,67 @@ final class ShopSubscription extends Model
         return $statement->fetchAll();
     }
 
+    public function featuresForPlan(int $planId): array
+    {
+        if ($planId < 1) {
+            return [];
+        }
+        $statement = Database::connection()->prepare(
+            'SELECT features.id, features.code, features.nom, features.description, features.categorie
+             FROM saas_plan_features assignments
+             INNER JOIN saas_features features ON features.id = assignments.feature_id
+             WHERE assignments.plan_id = :plan_id AND features.actif = 1
+             ORDER BY features.categorie, features.nom'
+        );
+        $statement->execute(['plan_id' => $planId]);
+        return $statement->fetchAll();
+    }
+
+    public function availablePlansForShop(int $shopId): array
+    {
+        $statement = Database::connection()->prepare(
+            'SELECT plans.*
+             FROM shops
+             INNER JOIN saas_category_plans category_plans ON category_plans.category_id = shops.category_id
+             INNER JOIN saas_subscription_plans plans ON plans.id = category_plans.plan_id AND plans.actif = 1
+             WHERE shops.id = :shop_id
+             ORDER BY plans.prix_mensuel_usd, plans.nom'
+        );
+        $statement->execute(['shop_id' => $shopId]);
+        return $statement->fetchAll();
+    }
+
+    public function changePlan(int $shopId, int $planId): void
+    {
+        if ($planId < 1) {
+            throw new InvalidArgumentException('Selectionnez un plan valide.');
+        }
+        $allowed = Database::connection()->prepare(
+            'SELECT plans.id
+             FROM shops
+             INNER JOIN saas_category_plans category_plans ON category_plans.category_id = shops.category_id
+             INNER JOIN saas_subscription_plans plans ON plans.id = category_plans.plan_id
+             WHERE shops.id = :shop_id AND plans.id = :plan_id AND plans.actif = 1
+             LIMIT 1'
+        );
+        $allowed->execute(['shop_id' => $shopId, 'plan_id' => $planId]);
+        if (!$allowed->fetchColumn()) {
+            throw new RuntimeException('Ce plan n est pas disponible pour la categorie de cette boutique.');
+        }
+
+        $statement = Database::connection()->prepare(
+            'UPDATE saas_subscriptions SET plan_id = :plan_id WHERE shop_id = :shop_id AND plan_id <> :current_plan_id'
+        );
+        $statement->execute(['shop_id' => $shopId, 'plan_id' => $planId, 'current_plan_id' => $planId]);
+        if ($statement->rowCount() < 1) {
+            $current = $this->currentForShop($shopId);
+            if ($current === null) {
+                throw new RuntimeException('Aucun abonnement n est configure pour cette boutique.');
+            }
+            throw new RuntimeException('Ce plan est deja le plan actif.');
+        }
+    }
+
     public function requestRenewal(int $shopId): int
     {
         $subscription = $this->currentForShop($shopId);

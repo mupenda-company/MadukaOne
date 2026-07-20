@@ -73,6 +73,8 @@ final class Router
             );
 
             $this->runMiddlewares($route['middlewares'], $path, $method, $params);
+            require_once __DIR__ . '/AuditLogger.php';
+            AuditLogger::record($method, $path, is_string($route['action']) ? $route['action'] : 'callable', $params);
             $this->callAction($route['action'], $params);
 
             return;

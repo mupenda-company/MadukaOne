@@ -36,9 +36,9 @@ $safe = static fn (mixed $value): string => htmlspecialchars((string) $value, EN
 
                 <div class="mt-5 rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-900">
                     <?php if (is_array($selectedPlan)): ?>
-                        Forfait choisi : <strong><?= $safe($selectedPlan['nom']) ?></strong> — essai gratuit de 14 jours.
+                        Forfait choisi : <strong><?= $safe($selectedPlan['nom']) ?></strong> — essai gratuit de <?= (int) $trialDays ?> jour(s).
                     <?php else: ?>
-                        <strong>Essai gratuit de 14 jours</strong> — vous pourrez choisir un forfait depuis votre espace.
+                        <strong>Choisissez d’abord un forfait disponible.</strong>
                     <?php endif; ?>
                 </div>
 

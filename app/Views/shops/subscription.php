@@ -2,6 +2,9 @@
 
 $subscription = is_array($subscription ?? null) ? $subscription : null;
 $payments = is_array($payments ?? null) ? $payments : [];
+$planFeatures = is_array($planFeatures ?? null) ? $planFeatures : [];
+$availablePlans = is_array($availablePlans ?? null) ? $availablePlans : [];
+$moduleCatalog = is_array($moduleCatalog ?? null) ? $moduleCatalog : [];
 $activeShop = is_array($activeShop ?? null) ? $activeShop : [];
 $shopCategory = (string) ($activeShop['category_name'] ?? 'Sans categorie');
 $exchangeRate = (float) (($activeShop['taux_change_cdf'] ?? $subscription['taux_change_cdf'] ?? 2800) ?: 2800);
@@ -43,8 +46,14 @@ if ($subscription !== null && trim((string) ($subscription['date_fin'] ?? '')) !
         $daysLeft = (int) (new DateTimeImmutable('today'))->diff($end)->format('%r%a');
     }
 }
-$features = preg_split('/\R+/', trim((string) ($subscription['plan_description'] ?? ''))) ?: [];
-$features = array_values(array_filter(array_map('trim', $features), static fn (string $line): bool => $line !== ''));
+$currentPlanId = (int) ($subscription['plan_id'] ?? 0);
+$nextPlan = null;
+foreach ($availablePlans as $candidatePlan) {
+    if ((float) ($candidatePlan['prix_mensuel_usd'] ?? 0) > (float) ($subscription['prix_mensuel_usd'] ?? 0)) {
+        $nextPlan = $candidatePlan;
+        break;
+    }
+}
 ?>
 
 <section class="space-y-5">
@@ -61,6 +70,8 @@ $features = array_values(array_filter(array_map('trim', $features), static fn (s
             </p>
         </div>
         <?php if ($subscription !== null): ?>
+            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <a class="btn-secondary w-full px-5 sm:w-auto" href="#change-plan">Changer de plan</a>
             <form method="post" action="<?= $url('/shops/subscription/renew') ?>" data-confirm-form>
                 <button
                     class="btn-primary w-full px-5 sm:w-auto"
@@ -72,6 +83,7 @@ $features = array_values(array_filter(array_map('trim', $features), static fn (s
                     data-confirm-progress="Creation..."
                 >Renouveler</button>
             </form>
+            </div>
         <?php endif; ?>
     </div>
 
@@ -105,6 +117,17 @@ $features = array_values(array_filter(array_map('trim', $features), static fn (s
                 <?php endif; ?>
             </article>
         </div>
+
+        <section class="surface-panel">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="max-w-2xl"><p class="text-xs font-bold uppercase tracking-[.14em] text-teal-700">Configuration en base de données</p><h2 class="mt-2 text-lg font-bold text-slate-950"><?= $safe($subscription['plan_name'] ?? 'Plan') ?></h2><p class="mt-2 text-sm leading-6 text-slate-500"><?= $safe($subscription['plan_description'] ?? '', 'Aucune description définie pour ce plan.') ?></p></div>
+                <div class="grid w-full gap-2 sm:grid-cols-3 lg:max-w-xl">
+                    <div class="rounded-xl bg-blue-50 p-3"><p class="text-xs font-bold text-blue-600">Boutiques</p><p class="mt-1 font-black text-blue-950"><?= $subscription['limite_boutiques'] === null ? 'Illimitées' : (int) $subscription['limite_boutiques'] ?></p></div>
+                    <div class="rounded-xl bg-violet-50 p-3"><p class="text-xs font-bold text-violet-600">Utilisateurs</p><p class="mt-1 font-black text-violet-950"><?= $subscription['limite_utilisateurs'] === null ? 'Illimités' : (int) $subscription['limite_utilisateurs'] ?></p></div>
+                    <div class="rounded-xl bg-teal-50 p-3"><p class="text-xs font-bold text-teal-600">Produits</p><p class="mt-1 font-black text-teal-950"><?= $subscription['limite_produits'] === null ? 'Illimités' : (int) $subscription['limite_produits'] ?></p></div>
+                </div>
+            </div>
+        </section>
 
         <div class="grid gap-5 xl:grid-cols-[1fr_24rem]">
             <section class="surface-panel">
@@ -154,6 +177,29 @@ $features = array_values(array_filter(array_map('trim', $features), static fn (s
             </section>
 
             <aside class="space-y-5">
+                <section class="surface-panel" id="change-plan">
+                    <div class="flex items-start justify-between gap-3">
+                        <div><p class="text-xs font-bold uppercase tracking-[.14em] text-blue-700">Évolution</p><h2 class="mt-2 font-bold text-slate-950">Changer de plan</h2></div>
+                        <?php if ($nextPlan !== null): ?><span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">Plan suivant</span><?php endif; ?>
+                    </div>
+                    <p class="mt-2 text-sm leading-6 text-slate-500">Seuls les plans réellement autorisés pour la catégorie <?= $safe($shopCategory) ?> sont proposés.</p>
+                    <?php if (count($availablePlans) > 1): ?>
+                        <form class="mt-5 space-y-4" method="post" action="<?= $url('/shops/subscription/change-plan') ?>">
+                            <label class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-slate-500">
+                                <span>Nouveau plan</span>
+                                <select class="field-control text-sm normal-case" name="plan_id" required>
+                                    <?php foreach ($availablePlans as $plan): ?>
+                                        <option value="<?= (int) $plan['id'] ?>" <?= (int) $plan['id'] === $currentPlanId ? 'disabled' : '' ?> <?= $nextPlan !== null && (int) $plan['id'] === (int) $nextPlan['id'] ? 'selected' : '' ?>><?= $safe($plan['nom']) ?> — <?= number_format((float) $plan['prix_mensuel_usd'], 2, ',', ' ') ?> USD<?= (int) $plan['id'] === $currentPlanId ? ' (actuel)' : '' ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                            <button class="btn-primary" type="button" data-confirm data-confirm-title="Changer le plan d’abonnement ?" data-confirm-message="Les menus et fonctionnalités de la boutique seront immédiatement adaptés au nouveau plan." data-confirm-accept="Confirmer le changement" data-confirm-progress="Changement en cours...">Passer au plan sélectionné</button>
+                        </form>
+                    <?php else: ?>
+                        <p class="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">Aucun autre plan n’est actuellement disponible pour cette catégorie.</p>
+                    <?php endif; ?>
+                </section>
+
                 <section class="surface-panel">
                     <h2 class="font-bold text-slate-950">Renouvellement</h2>
                     <p class="mt-2 text-sm leading-6 text-slate-500">Activez ou desactivez la reconduction automatique de votre abonnement.</p>
@@ -167,14 +213,17 @@ $features = array_values(array_filter(array_map('trim', $features), static fn (s
                 </section>
 
                 <section class="surface-panel">
-                    <h2 class="font-bold text-slate-950">Modules inclus</h2>
-                    <div class="mt-4 grid gap-2">
-                        <?php foreach (array_slice($features, 0, 12) as $feature): ?>
-                            <span class="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"><?= $safe($feature) ?></span>
+                    <div class="flex items-center justify-between gap-3"><h2 class="font-bold text-slate-950">Modules et fonctionnalités</h2><span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700"><?= count($planFeatures) ?> module(s)</span></div>
+                    <p class="mt-2 text-sm text-slate-500">Données exactes attribuées au plan dans l’administration SaaS.</p>
+                    <div class="mt-4 grid gap-3">
+                        <?php foreach ($planFeatures as $feature): $catalog = $moduleCatalog[(string) ($feature['code'] ?? '')] ?? []; ?>
+                            <details class="group rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <summary class="cursor-pointer list-none font-bold text-slate-800"><span class="flex items-center justify-between gap-2"><span><?= $safe($catalog['label'] ?? $feature['nom']) ?></span><span class="text-teal-700 group-open:rotate-45">+</span></span></summary>
+                                <p class="mt-2 text-xs leading-5 text-slate-500"><?= $safe($feature['description'] ?? '', 'Module actif dans ce plan.') ?></p>
+                                <?php if (($catalog['capabilities'] ?? []) !== []): ?><ul class="mt-3 space-y-2"><?php foreach ($catalog['capabilities'] as $capability): ?><li class="flex gap-2 text-xs leading-5 text-slate-600"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500"></span><?= $safe($capability) ?></li><?php endforeach; ?></ul><?php endif; ?>
+                            </details>
                         <?php endforeach; ?>
-                        <?php if ($features === []): ?>
-                            <span class="text-sm font-semibold text-slate-500">Aucun module detaille pour ce plan.</span>
-                        <?php endif; ?>
+                        <?php if ($planFeatures === []): ?><span class="rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">Aucun module n’est attribué à ce plan dans la base de données.</span><?php endif; ?>
                     </div>
                 </section>
             </aside>

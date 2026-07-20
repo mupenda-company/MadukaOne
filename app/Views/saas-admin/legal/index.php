@@ -7,7 +7,7 @@ $publicPath = $isPrivacy ? '/privacy' : '/terms';
 $activeCount = count(array_filter($sections, static fn (array $section): bool => (int) ($section['actif'] ?? 0) === 1));
 $safe = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 ?>
-<section class="space-y-5">
+<section class="space-y-5" data-legal-admin>
     <div class="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-teal-900 p-6 text-white shadow-xl sm:p-8">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div class="max-w-3xl">
@@ -25,8 +25,8 @@ $safe = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), 
         <article class="stat-card"><p class="text-sm text-slate-500">Visibilité</p><p class="mt-2 text-lg font-bold text-blue-700">Page publique synchronisée</p></article>
     </div>
 
-    <div class="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <form class="surface-panel h-fit space-y-4 xl:sticky xl:top-5" method="post" action="<?= $url($adminPath) ?>">
+    <div class="grid items-start gap-5 2xl:grid-cols-[380px_minmax(0,1fr)]">
+        <form class="surface-panel h-fit space-y-5 2xl:sticky 2xl:top-5" method="post" action="<?= $url($adminPath) ?>">
             <div>
                 <p class="text-xs font-black uppercase tracking-[.16em] text-teal-700">Nouvelle section</p>
                 <h2 class="mt-2 text-xl font-bold">Ajouter du contenu</h2>
@@ -56,13 +56,13 @@ $safe = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), 
                         <div class="min-w-0 flex-1"><h3 class="truncate font-bold"><?= $safe($section['titre']) ?></h3><p class="mt-1 text-xs text-slate-500">Position <?= (int) $section['ordre'] ?> · <?= (int) $section['actif'] === 1 ? 'Publiée' : 'Masquée' ?></p></div>
                         <span class="rounded-full px-3 py-1 text-xs font-bold <?= (int) $section['actif'] === 1 ? 'bg-teal-100 text-teal-800' : 'bg-slate-200 text-slate-600' ?>"><?= (int) $section['actif'] === 1 ? 'En ligne' : 'Brouillon' ?></span>
                     </div>
-                    <form class="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_120px]" method="post" action="<?= $url($adminPath . '/' . (int) $section['id'] . '/update') ?>">
+                    <form class="grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_9rem]" method="post" action="<?= $url($adminPath . '/' . (int) $section['id'] . '/update') ?>">
                         <label class="form-field"><span>Titre</span><input name="titre" required maxlength="180" value="<?= $safe($section['titre']) ?>"></label>
                         <label class="form-field"><span>Ordre</span><input name="ordre" type="number" min="0" value="<?= (int) $section['ordre'] ?>"></label>
-                        <label class="form-field lg:col-span-2"><span>Contenu public</span><textarea name="contenu" required rows="5"><?= $safe($section['contenu']) ?></textarea></label>
-                        <div class="flex flex-wrap items-center gap-3 lg:col-span-2">
+                        <label class="form-field md:col-span-2"><span>Contenu public</span><textarea name="contenu" required rows="5"><?= $safe($section['contenu']) ?></textarea></label>
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center md:col-span-2">
                             <label class="mr-auto flex items-center gap-2 text-sm font-bold text-slate-700"><input name="actif" type="checkbox" value="1" <?= (int) $section['actif'] === 1 ? 'checked' : '' ?>> Section publiée</label>
-                            <button class="btn-primary" type="submit">Enregistrer</button>
+                            <button class="btn-primary sm:w-auto sm:px-8" type="submit">Enregistrer</button>
                         </div>
                     </form>
                     <div class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">

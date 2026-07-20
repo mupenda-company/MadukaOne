@@ -38,6 +38,29 @@
 }
 
 @layer components {
+  [data-legal-admin] .form-field {
+    @apply grid min-w-0 gap-2 text-sm font-semibold text-slate-700;
+  }
+
+  [data-legal-admin] .form-field > span {
+    @apply block text-xs font-bold uppercase tracking-[.08em] text-slate-500;
+  }
+
+  [data-legal-admin] .form-field > input,
+  [data-legal-admin] .form-field > select,
+  [data-legal-admin] .form-field > textarea {
+    @apply w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-100;
+  }
+
+  [data-legal-admin] .form-field > input,
+  [data-legal-admin] .form-field > select {
+    @apply min-h-12;
+  }
+
+  [data-legal-admin] .form-field > textarea {
+    @apply min-h-32 resize-y leading-6;
+  }
+
   .auth-shell {
     background:
       radial-gradient(circle at 18% 16%, rgba(20, 184, 166, .16), transparent 28%),

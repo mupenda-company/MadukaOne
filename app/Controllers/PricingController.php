@@ -17,6 +17,7 @@ final class PricingController
     {
         $this->startSession();
         $plans = $this->registrations->activePlans();
+        $trialDays = $this->registrations->trialDays();
         $selectedPlanId = (int) ($_SESSION['selected_plan'] ?? 0);
         $csrfToken = $this->csrfToken();
         $basePath = $this->basePath();

@@ -5,17 +5,13 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/Core/Database.php';
 require_once dirname(__DIR__) . '/Core/ShopSettings.php';
 require_once __DIR__ . '/User.php';
+require_once __DIR__ . '/PublicPlan.php';
 
 final class StoreRegistration
 {
     public function activePlans(): array
     {
-        return Database::connection()->query(
-            'SELECT id, nom, code, prix_mensuel_usd, limite_boutiques, limite_utilisateurs, limite_produits, description
-             FROM saas_subscription_plans
-             WHERE actif = 1
-             ORDER BY prix_mensuel_usd ASC, id ASC'
-        )->fetchAll();
+        return (new PublicPlan())->activeWithFeatures();
     }
 
     public function findActivePlan(int $id): ?array
@@ -24,16 +20,22 @@ final class StoreRegistration
             return null;
         }
 
-        $statement = Database::connection()->prepare(
-            'SELECT id, nom, code, prix_mensuel_usd, limite_boutiques, limite_utilisateurs, limite_produits, description
-             FROM saas_subscription_plans
-             WHERE id = :id AND actif = 1
-             LIMIT 1'
-        );
-        $statement->execute(['id' => $id]);
-        $plan = $statement->fetch();
+        foreach ($this->activePlans() as $plan) {
+            if ((int) ($plan['id'] ?? 0) === $id) {
+                return $plan;
+            }
+        }
 
-        return is_array($plan) ? $plan : null;
+        return null;
+    }
+
+    public function trialDays(): int
+    {
+        $statement = Database::connection()->prepare('SELECT setting_value FROM saas_settings WHERE setting_key = :key LIMIT 1');
+        $statement->execute(['key' => 'default_trial_days']);
+        $value = $statement->fetchColumn();
+
+        return max(0, min(3650, is_numeric($value) ? (int) $value : 0));
     }
 
     public function register(array $data, ?int $planId): array
@@ -43,9 +45,9 @@ final class StoreRegistration
 
         try {
             $planWasSelected = $planId !== null;
-            $plan = $planWasSelected ? $this->findActivePlan($planId) : ($this->activePlans()[0] ?? null);
+            $plan = $planWasSelected ? $this->findActivePlan($planId) : null;
 
-            if ($planWasSelected && $plan === null) {
+            if ($plan === null) {
                 throw new InvalidArgumentException('Le forfait sélectionné n’est plus disponible.');
             }
 
@@ -86,15 +88,20 @@ final class StoreRegistration
             $owner = $pdo->prepare('UPDATE shops SET owner_user_id = :user_id WHERE id = :shop_id');
             $owner->execute(['user_id' => $userId, 'shop_id' => $shopId]);
 
+            $trialDays = $this->trialDays();
+            $trialStart = new DateTimeImmutable('today');
+            $trialEnd = $trialStart->modify('+' . $trialDays . ' days');
             $subscription = $pdo->prepare(
                 'INSERT INTO saas_subscriptions
                     (shop_id, plan_id, statut, date_debut, date_fin, renouvellement_auto, notes)
                  VALUES
-                    (:shop_id, :plan_id, "trial", CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY), 0, :notes)'
+                    (:shop_id, :plan_id, "trial", :date_debut, :date_fin, 0, :notes)'
             );
             $subscription->execute([
                 'shop_id' => $shopId,
                 'plan_id' => $plan['id'] ?? null,
+                'date_debut' => $trialStart->format('Y-m-d'),
+                'date_fin' => $trialEnd->format('Y-m-d'),
                 'notes' => $plan === null
                     ? 'Essai gratuit créé lors de l inscription publique.'
                     : 'Essai gratuit associé au forfait ' . (string) $plan['nom'] . ($planWasSelected ? '.' : ' par défaut.'),
@@ -119,6 +126,7 @@ final class StoreRegistration
                 'user' => $user,
                 'shop' => ['id' => $shopId, 'nom' => trim((string) $data['shop_name']), 'slug' => $slug],
                 'plan' => $plan,
+                'trial_days' => $trialDays,
             ];
         } catch (Throwable $exception) {
             if ($pdo->inTransaction()) {

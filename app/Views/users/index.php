@@ -79,15 +79,9 @@ $icon = static function (string $name): string {
                 Vue centralisee des comptes disponibles dans la table users, avec roles, boutiques et statut de connexion.
             </p>
         </div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <a class="btn-primary h-11 w-full px-5 sm:w-auto" href="<?= $url('/users/create') ?>">
-                Ajouter un employe
-            </a>
-            <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <p class="text-xs font-semibold uppercase tracking-[.16em] text-slate-400">Source</p>
-                <p class="mt-1 font-bold text-slate-950">Table users</p>
-            </div>
-        </div>
+        <a class="btn-primary h-11 w-full px-5 sm:w-auto" href="<?= $url('/users/create') ?>">
+            Ajouter un employe
+        </a>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

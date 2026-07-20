@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS saas_audit_logs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  shop_id BIGINT UNSIGNED NULL,
+  user_id BIGINT UNSIGNED NULL,
+  methode VARCHAR(10) NOT NULL,
+  chemin VARCHAR(255) NOT NULL,
+  action VARCHAR(160) NOT NULL,
+  module VARCHAR(80) NOT NULL DEFAULT 'general',
+  entity_type VARCHAR(80) NULL,
+  entity_id BIGINT UNSIGNED NULL,
+  ip_address VARCHAR(45) NULL,
+  user_agent VARCHAR(500) NULL,
+  metadata JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_saas_audit_created (created_at),
+  KEY idx_saas_audit_shop (shop_id, created_at),
+  KEY idx_saas_audit_user (user_id, created_at),
+  KEY idx_saas_audit_module (module, created_at),
+  CONSTRAINT fk_saas_audit_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  CONSTRAINT fk_saas_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Core/AppController.php';
 require_once dirname(__DIR__) . '/Models/ShopSubscription.php';
+require_once dirname(__DIR__) . '/Core/ModuleCatalog.php';
 
 final class ShopSubscriptionController extends AppController
 {
@@ -17,12 +18,17 @@ final class ShopSubscriptionController extends AppController
     public function show(array $params = []): void
     {
         $shopId = $this->currentShopId();
+        $subscription = $this->subscriptions->currentForShop($shopId);
+        $plans = $this->subscriptions->availablePlansForShop($shopId);
 
         $this->render('shops/subscription', [
             'pageTitle' => 'Abonnement boutique',
             'activeMenu' => 'shop_subscription',
-            'subscription' => $this->subscriptions->currentForShop($shopId),
+            'subscription' => $subscription,
             'payments' => $this->subscriptions->paymentsForShop($shopId),
+            'planFeatures' => $this->subscriptions->featuresForPlan((int) ($subscription['plan_id'] ?? 0)),
+            'availablePlans' => $plans,
+            'moduleCatalog' => ModuleCatalog::all(),
         ]);
     }
 
@@ -49,6 +55,18 @@ final class ShopSubscriptionController extends AppController
             $this->flashSuccess('Preference de renouvellement mise a jour.');
         } catch (Throwable $exception) {
             $this->flashError('Mise a jour impossible: ' . $exception->getMessage());
+        }
+
+        $this->redirect('/shops/subscription');
+    }
+
+    public function changePlan(array $params = []): void
+    {
+        try {
+            $this->subscriptions->changePlan($this->currentShopId(), (int) ($_POST['plan_id'] ?? 0));
+            $this->flashSuccess('Votre plan d abonnement a ete change. Les modules du nouveau plan sont maintenant appliques.');
+        } catch (Throwable $exception) {
+            $this->flashError('Changement de plan impossible: ' . $exception->getMessage());
         }
 
         $this->redirect('/shops/subscription');

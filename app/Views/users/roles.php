@@ -51,10 +51,6 @@ $icon = static function (string $name): string {
                 Consultez les profils d'acces disponibles, leurs permissions et le nombre d'utilisateurs associes.
             </p>
         </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[.16em] text-slate-400">Source</p>
-            <p class="mt-1 font-bold text-slate-950">Table roles</p>
-        </div>
         <a class="btn-primary w-full gap-2 sm:w-auto" href="<?= $url('/roles/create') ?>">
             <?= $icon('plus') ?>
             <span>Ajouter un role</span>

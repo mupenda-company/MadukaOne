@@ -18,6 +18,10 @@ final class RegistrationController
     {
         $this->startSession();
         $selectedPlan = $this->selectedPlan();
+        if ($selectedPlan === null) {
+            $this->redirect('/pricing');
+        }
+        $trialDays = $this->registrations->trialDays();
         $flashError = $_SESSION['flash_error'] ?? null;
         $old = is_array($_SESSION['registration_old'] ?? null) ? $_SESSION['registration_old'] : [];
         unset($_SESSION['flash_error'], $_SESSION['registration_old']);
@@ -59,7 +63,8 @@ final class RegistrationController
             $_SESSION['user'] = $users->sessionPayload($result['user']);
             $_SESSION['shop_id'] = (int) $result['shop']['id'];
             $_SESSION['current_shop_id'] = (int) $result['shop']['id'];
-            $_SESSION['flash_success'] = 'Bienvenue ! Votre boutique est prête et votre essai gratuit de 14 jours a commencé.';
+            $trialDays = (int) ($result['trial_days'] ?? 0);
+            $_SESSION['flash_success'] = 'Bienvenue ! Votre boutique est prête et votre essai gratuit de ' . $trialDays . ' jour(s) a commencé.';
             unset($_SESSION['selected_plan'], $_SESSION['registration_old']);
 
             $this->redirect('/dashboard');

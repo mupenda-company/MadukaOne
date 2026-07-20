@@ -327,7 +327,9 @@ final class SaasAdminRepository extends Model
     {
         $this->ensureSchema();
 
-        $sql = 'SELECT categories.*, COUNT(shops.id) AS shops_count
+        $sql = 'SELECT categories.*, COUNT(shops.id) AS shops_count,
+                       SUM(CASE WHEN shops.id IS NOT NULL AND shops.actif = 1 THEN 1 ELSE 0 END) AS active_shops_count,
+                       SUM(CASE WHEN shops.id IS NOT NULL AND shops.actif = 0 THEN 1 ELSE 0 END) AS inactive_shops_count
                 FROM shop_categories categories
                 LEFT JOIN shops ON shops.category_id = categories.id';
 
@@ -387,12 +389,48 @@ final class SaasAdminRepository extends Model
             'id' => $id,
         ]);
 
-        return $statement->rowCount() > 0;
+        if ($statement->rowCount() > 0) {
+            return true;
+        }
+
+        $exists = Database::connection()->prepare('SELECT 1 FROM shop_categories WHERE id = :id');
+        $exists->execute(['id' => $id]);
+
+        return (bool) $exists->fetchColumn();
     }
 
     public function toggleCategory(int $id): bool
     {
-        $statement = Database::connection()->prepare('UPDATE shop_categories SET actif = CASE WHEN actif = 1 THEN 0 ELSE 1 END WHERE id = :id');
+        if ($id < 1) {
+            throw new InvalidArgumentException('Categorie invalide.');
+        }
+
+        $statement = Database::connection()->prepare('UPDATE shop_categories SET actif = IF(actif = 1, 0, 1) WHERE id = :id');
+        $statement->execute(['id' => $id]);
+
+        if ($statement->rowCount() > 0) {
+            return true;
+        }
+
+        $exists = Database::connection()->prepare('SELECT 1 FROM shop_categories WHERE id = :id');
+        $exists->execute(['id' => $id]);
+
+        return (bool) $exists->fetchColumn();
+    }
+
+    public function deleteCategory(int $id): bool
+    {
+        if ($id < 1) {
+            throw new InvalidArgumentException('Categorie invalide.');
+        }
+
+        $usage = Database::connection()->prepare('SELECT COUNT(*) FROM shops WHERE category_id = :id');
+        $usage->execute(['id' => $id]);
+        if ((int) $usage->fetchColumn() > 0) {
+            throw new RuntimeException('Cette categorie contient des boutiques. Desactivez-la au lieu de la supprimer.');
+        }
+
+        $statement = Database::connection()->prepare('DELETE FROM shop_categories WHERE id = :id');
         $statement->execute(['id' => $id]);
 
         return $statement->rowCount() > 0;
@@ -985,7 +1023,7 @@ final class SaasAdminRepository extends Model
         $statement = Database::connection()->prepare(
             'INSERT INTO shop_categories (nom, slug, actif)
              VALUES (:nom, :slug, 1)
-             ON DUPLICATE KEY UPDATE nom = VALUES(nom), actif = VALUES(actif)'
+             ON DUPLICATE KEY UPDATE id = id'
         );
 
         foreach ($categories as [$name, $slug]) {
@@ -1017,10 +1055,7 @@ final class SaasAdminRepository extends Model
         $descriptionStatement = Database::connection()->prepare(
             'INSERT INTO shop_categories (nom, slug, description, actif)
              VALUES (:nom, :slug, :description, 1)
-             ON DUPLICATE KEY UPDATE
-                nom = VALUES(nom),
-                description = VALUES(description),
-                actif = VALUES(actif)'
+             ON DUPLICATE KEY UPDATE id = id'
         );
 
         foreach ($descriptions as $slug => $description) {
