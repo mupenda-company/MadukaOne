@@ -186,6 +186,7 @@ return [
     ['GET', '/sales/{id}', 'PosController@show', $protected],
     ['GET', '/sales/{id}/edit', 'PosController@edit', $protected],
     ['POST', '/sales/{id}/update', 'PosController@update', $protected],
+    ['POST', '/sales/{id}/cancel', 'PosController@destroy', $protected],
     ['POST', '/sales/{id}/delete', 'PosController@destroy', $protected],
     ['GET', '/sales/{id}/invoice', 'PosController@invoice', $protected],
     ['POST', '/pos/sale', 'PosController@store', $protected],

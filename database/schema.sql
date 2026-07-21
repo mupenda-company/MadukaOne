@@ -178,7 +178,7 @@ CREATE TABLE products (
 CREATE TABLE supplies (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   shop_id BIGINT UNSIGNED NOT NULL,
-  supplier_id BIGINT UNSIGNED NOT NULL,
+  supplier_id BIGINT UNSIGNED NULL,
   user_id BIGINT UNSIGNED NOT NULL, -- L'administrateur ou acheteur ayant validÃ© l'entrÃ©e
   numero_arrivage VARCHAR(50) NOT NULL,
   date_approvisionnement DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

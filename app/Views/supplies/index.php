@@ -105,7 +105,7 @@ $icon = static function (string $name): string {
                         ?>
                         <tr class="hover:bg-slate-50">
                             <td class="px-4 py-4 font-bold text-slate-950" data-label="N° arrivage"><?= $safe($supply['numero_arrivage'] ?? '-') ?></td>
-                            <td class="px-4 py-4 text-slate-700" data-label="Fournisseur"><?= $safe($supply['supplier_name'] ?? '-') ?></td>
+                            <td class="px-4 py-4 text-slate-700" data-label="Fournisseur"><?= $safe($supply['supplier_name'] ?? 'Fournisseur non renseigné') ?></td>
                             <td class="px-4 py-4 text-slate-600" data-label="Date"><?= $safe($dateLabel($supply['date_approvisionnement'] ?? null)) ?></td>
                             <td class="px-4 py-4 text-slate-700" data-label="Lignes">
                                 <?= (int) ($supply['lines_count'] ?? 0) ?> ligne(s), <?= (int) ($supply['total_units'] ?? 0) ?> unité(s)

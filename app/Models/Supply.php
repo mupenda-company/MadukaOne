@@ -29,7 +29,7 @@ final class Supply extends Model
                     COALESCE(detail_totals.entered_total_cdf, 0) AS entered_total_cdf,
                     COALESCE(detail_totals.entered_currencies_count, 0) AS entered_currencies_count
              FROM supplies
-             INNER JOIN suppliers ON suppliers.id = supplies.supplier_id
+             LEFT JOIN suppliers ON suppliers.id = supplies.supplier_id
              INNER JOIN users ON users.id = supplies.user_id
              LEFT JOIN (
                 SELECT supply_id,
@@ -107,7 +107,7 @@ final class Supply extends Model
         $statement = Database::connection()->prepare(
             'SELECT supplies.*, suppliers.nom AS supplier_name, users.nom AS user_name
              FROM supplies
-             INNER JOIN suppliers ON suppliers.id = supplies.supplier_id
+             LEFT JOIN suppliers ON suppliers.id = supplies.supplier_id
              INNER JOIN users ON users.id = supplies.user_id
              WHERE supplies.id = :id AND supplies.shop_id = :shop_id
              LIMIT 1'
@@ -150,7 +150,10 @@ final class Supply extends Model
         $db->beginTransaction();
 
         try {
-            $this->ensureSupplierBelongsToShop($db, (int) $data['supplier_id'], $shopId);
+            $supplierId = $this->nullablePositiveInt($data['supplier_id'] ?? null);
+            if ($supplierId !== null) {
+                $this->ensureSupplierBelongsToShop($db, $supplierId, $shopId);
+            }
             $total = $this->calculateTotal($data['items']);
             $supplyId = $this->insertSupply($db, $data, $shopId, $userId, $total);
 
@@ -223,7 +226,10 @@ final class Supply extends Model
                 throw new RuntimeException('Un approvisionnement annule ne peut pas etre modifie.');
             }
 
-            $this->ensureSupplierBelongsToShop($db, (int) $data['supplier_id'], $shopId);
+            $supplierId = $this->nullablePositiveInt($data['supplier_id'] ?? null);
+            if ($supplierId !== null) {
+                $this->ensureSupplierBelongsToShop($db, $supplierId, $shopId);
+            }
             $oldDetails = $this->detailsForUpdate($db, $id);
             $newItems = $this->normalizeItems($data['items']);
             $total = $this->calculateTotal($newItems);
@@ -328,7 +334,7 @@ final class Supply extends Model
 
         $statement->execute([
             'shop_id' => $shopId,
-            'supplier_id' => (int) $data['supplier_id'],
+            'supplier_id' => $this->nullablePositiveInt($data['supplier_id'] ?? null),
             'user_id' => $userId,
             'numero_arrivage' => trim((string) $data['numero_arrivage']),
             'date_approvisionnement' => $data['date_approvisionnement'] ?: date('Y-m-d H:i:s'),
@@ -542,7 +548,7 @@ final class Supply extends Model
         );
 
         $statement->execute([
-            'supplier_id' => (int) $data['supplier_id'],
+            'supplier_id' => $this->nullablePositiveInt($data['supplier_id'] ?? null),
             'date_approvisionnement' => $data['date_approvisionnement'] ?: date('Y-m-d H:i:s'),
             'total_facture' => $total,
             'id' => $id,
@@ -668,5 +674,12 @@ final class Supply extends Model
         }
 
         return $total;
+    }
+
+    private function nullablePositiveInt(mixed $value): ?int
+    {
+        $value = (int) ($value ?? 0);
+
+        return $value > 0 ? $value : null;
     }
 }

@@ -1,0 +1,2 @@
+ALTER TABLE supplies
+    MODIFY COLUMN supplier_id BIGINT UNSIGNED NULL;

@@ -40,6 +40,7 @@ $icon = static function (string $name): string {
                 <label class="block">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Fournisseur</span>
                     <select class="field-control" name="supplier_id">
+                        <option value="">Aucun fournisseur (facultatif)</option>
                         <?php foreach ($suppliers as $supplier): ?>
                             <?php $selected = (int) ($supplier['id'] ?? 0) === (int) ($supply['supplier_id'] ?? 0); ?>
                             <option value="<?= (int) $supplier['id'] ?>" <?= $selected ? 'selected' : '' ?>><?= $safe($supplier['nom'] ?? '') ?></option>

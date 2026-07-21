@@ -25,9 +25,9 @@ $nextArrivalNumber = (string) ($nextArrivalNumber ?? ('ARR-' . date('Ymd') . '-0
         </div>
     </div>
 
-    <?php if ($suppliers === [] || $products === []): ?>
+    <?php if ($products === []): ?>
         <div class="rounded-xl border border-amber-100 bg-amber-50 p-5 text-sm font-semibold text-amber-800">
-            Ajoutez d’abord au moins un fournisseur et un produit actif avant d’enregistrer un arrivage.
+            Ajoutez d’abord au moins un produit actif avant d’enregistrer un arrivage.
         </div>
     <?php endif; ?>
 
@@ -37,6 +37,7 @@ $nextArrivalNumber = (string) ($nextArrivalNumber ?? ('ARR-' . date('Ymd') . '-0
                 <label class="block">
                     <span class="mb-2 block text-sm font-semibold text-slate-700">Fournisseur</span>
                     <select class="field-control" name="supplier_id">
+                        <option value="">Aucun fournisseur (facultatif)</option>
                         <?php foreach ($suppliers as $supplier): ?>
                             <?php $selected = (int) ($supplier['id'] ?? 0) === $selectedSupplierId; ?>
                             <option value="<?= (int) $supplier['id'] ?>" <?= $selected ? 'selected' : '' ?>><?= htmlspecialchars((string) $supplier['nom'], ENT_QUOTES, 'UTF-8') ?></option>
@@ -83,7 +84,7 @@ $nextArrivalNumber = (string) ($nextArrivalNumber ?? ('ARR-' . date('Ymd') . '-0
 
             <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <button class="btn-secondary" type="button" data-supply-add-line>Ajouter encore</button>
-                <button class="btn-primary w-full sm:w-auto" type="submit" <?= $suppliers === [] || $products === [] ? 'disabled' : '' ?>>Valider l’arrivage</button>
+                <button class="btn-primary w-full sm:w-auto" type="submit" <?= $products === [] ? 'disabled' : '' ?>>Valider l’arrivage</button>
             </div>
         </section>
     </form>

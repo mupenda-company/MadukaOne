@@ -202,9 +202,7 @@ class SupplyController extends AppController
 
     private function validateArrival(array $data, ?int $excludeId = null, bool $requireArrivalNumber = true): array
     {
-        $validator = Validator::make($data)
-            ->required('supplier_id', 'Fournisseur')
-            ->integerPositiveOrZero('supplier_id', 'Fournisseur');
+        $validator = Validator::make($data);
         if ($requireArrivalNumber) {
             $validator
                 ->required('numero_arrivage', 'Numero d arrivage')
@@ -212,10 +210,6 @@ class SupplyController extends AppController
         }
 
         $errors = $validator->errors();
-
-        if ((int) ($data['supplier_id'] ?? 0) <= 0) {
-            $errors['supplier_id'][] = 'Fournisseur invalide.';
-        }
 
         if ($requireArrivalNumber && !isset($errors['numero_arrivage']) && $this->supplies->arrivalNumberExists((string) ($data['numero_arrivage'] ?? ''), $excludeId)) {
             $errors['numero_arrivage'][] = 'Ce numero d arrivage existe deja. Utilisez le prochain numero propose.';

@@ -227,9 +227,9 @@ class PosController extends AppController
                 $this->abort(404, 'Vente introuvable pour cette boutique.');
             }
 
-            $this->flashSuccess('Vente annulée avec succès. Le stock et la dette client ont été ajustés.');
+            $this->flashSuccess('Vente annulée avec succès. Tous les articles ont été retournés automatiquement au stock.');
         } catch (Throwable $exception) {
-            $this->flashError('Impossible de supprimer cette vente: ' . $exception->getMessage());
+            $this->flashError('Impossible d’annuler cette vente : ' . $exception->getMessage());
         }
 
         $this->redirect('/sales');

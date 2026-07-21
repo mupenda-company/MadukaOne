@@ -453,7 +453,7 @@ final class Sale extends Model
                  WHERE id = :id AND shop_id = :shop_id'
             );
             $statement->execute([
-                'motif_annulation' => trim($reason) !== '' ? trim($reason) : 'Vente supprimee depuis l historique',
+                'motif_annulation' => trim($reason) !== '' ? trim($reason) : 'Vente annulée depuis l’historique des ventes',
                 'annulee_par' => $userId,
                 'id' => $id,
                 'shop_id' => $shopId,

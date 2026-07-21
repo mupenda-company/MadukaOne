@@ -66,7 +66,7 @@ $icon = static function (string $name): string {
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <article class="stat-card"><p class="text-sm text-slate-500">Fournisseur</p><p class="mt-2 truncate text-xl font-bold"><?= $safe($supply['supplier_name'] ?? '-') ?></p></article>
+        <article class="stat-card"><p class="text-sm text-slate-500">Fournisseur</p><p class="mt-2 truncate text-xl font-bold"><?= $safe($supply['supplier_name'] ?? 'Non renseigné') ?></p></article>
         <article class="stat-card"><p class="text-sm text-slate-500">Date</p><p class="mt-2 text-xl font-bold"><?= $safe($dateLabel($supply['date_approvisionnement'] ?? null)) ?></p></article>
         <article class="stat-card"><p class="text-sm text-slate-500">Total facture</p><p class="mt-2 text-xl font-bold text-teal-700"><?= $money($supply['total_facture'] ?? 0) ?></p></article>
         <article class="stat-card"><p class="text-sm text-slate-500">Statut</p><p class="mt-3"><span class="inline-flex rounded-full px-3 py-1 text-sm font-bold <?= $statusClass($status) ?>"><?= $statusLabel($status) ?></span></p></article>

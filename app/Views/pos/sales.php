@@ -250,17 +250,19 @@ $icon = static function (string $name): string {
                                     <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700" href="<?= $url('/sales/' . (int) ($sale['id'] ?? 0)) ?>" title="Voir la vente" aria-label="Voir la vente">
                                         <?= $icon('eye') ?>
                                     </a>
-                                    <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" href="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/edit') ?>" title="Modifier" aria-label="Modifier">
-                                        <?= $icon('edit') ?>
-                                    </a>
+                                    <?php if ($status !== 'annulee'): ?>
+                                        <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" href="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/edit') ?>" title="Modifier" aria-label="Modifier">
+                                            <?= $icon('edit') ?>
+                                        </a>
+                                    <?php endif; ?>
                                     <a class="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900" href="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/invoice') ?>" target="_blank" title="Imprimer la facture" aria-label="Imprimer la facture">
                                         <?= $icon('print') ?>
                                     </a>
                                     <?php if ($status !== 'annulee'): ?>
-                                        <form method="post" action="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/delete') ?>" data-confirm-form>
-                                            <input type="hidden" name="reason" value="Vente supprimée depuis l'historique">
-                                            <button class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50" type="submit" title="Supprimer" aria-label="Supprimer" data-confirm-message="Cette action annulera la vente, restaurera le stock et ajustera la dette client. Continuer ?">
-                                                <?= $icon('trash') ?>
+                                        <form method="post" action="<?= $url('/sales/' . (int) ($sale['id'] ?? 0) . '/cancel') ?>" data-confirm-form>
+                                            <input type="hidden" name="reason" value="Vente annulée depuis l'historique des ventes">
+                                            <button class="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700 transition hover:bg-red-50" type="button" title="Annuler la vente" aria-label="Annuler la vente" data-confirm data-confirm-title="Annuler cette vente ?" data-confirm-message="Les articles seront automatiquement retournés au stock. La vente restera visible avec le statut Annulée." data-confirm-accept="Oui, annuler la vente" data-confirm-progress="Annulation et retour du stock...">
+                                                <?= $icon('trash') ?> <span>Annuler</span>
                                             </button>
                                         </form>
                                     <?php endif; ?>
