@@ -421,7 +421,8 @@ INSERT INTO roles (id, nom, permissions)
 VALUES 
 (1, 'Super Admin', '{"all": true}'),
 (2, 'Gerant', '{"sales_view":true,"stock_adjust":true,"expenses_add":true}'),
-(3, 'Caissier', '{"pos_access":true}');
+(3, 'Caissier', '{"pos_access":true}'),
+(4, 'Propriétaire', '{"all":true}');
 
 -- Insertion du compte Administrateur Principal (RattachÃ© Ã  la boutique 1 par dÃ©faut)
 INSERT INTO users (nom, email, password_hash, role_legacy, role_id, shop_id, actif)
@@ -430,7 +431,7 @@ VALUES (
   'admin@example.com',
   '$2y$10$P6GArcijgFX6rQVQQTxxg.TusYWUJObGMjjfuMtJOB1B.dHskS2JC', -- DÃ©faut: admin123
   'admin',
-  1,
+  4,
   1,
   1
 );

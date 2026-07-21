@@ -120,7 +120,7 @@ final class Middleware
 
     private static function isAdmin(): bool
     {
-        return in_array(self::currentRole(), ['admin', 'super_admin', 'gerant'], true);
+        return in_array(self::currentRole(), ['admin', 'super_admin', 'owner', 'gerant'], true);
     }
 
     private static function isAgent(): bool
@@ -167,7 +167,8 @@ final class Middleware
             $roleName = strtolower(trim((string) ($user['role_name'] ?? '')));
             $roleName = str_replace(['-', ' '], '_', $roleName);
 
-            return in_array($roleName, ['super_admin', 'super_administrateur'], true);
+            return empty($user['shop_id'])
+                && in_array($roleName, ['admin', 'administrateur', 'administratrice', 'super_admin', 'super_administrateur', 'super_administratrice'], true);
         } catch (Throwable) {
             return false;
         }

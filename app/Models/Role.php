@@ -8,6 +8,9 @@ require_once dirname(__DIR__) . '/Core/Model.php';
 class Role extends Model
 {
     private const RESERVED_COMPACT_NAMES = [
+        'admin',
+        'administrateur',
+        'administratrice',
         'superadmin',
         'superadministrateur',
         'superadministratrice',
@@ -18,6 +21,9 @@ class Role extends Model
     ];
 
     private const RESERVED_EXACT_NAMES = [
+        'admin',
+        'administrateur',
+        'administratrice',
         'root',
         'owner',
         'saas admin',
@@ -67,6 +73,52 @@ class Role extends Model
         ]);
 
         return (int) Database::connection()->lastInsertId();
+    }
+
+    public function findWithUsage(int $id): ?array
+    {
+        if ($id < 1) {
+            return null;
+        }
+
+        $statement = Database::connection()->prepare(
+            'SELECT roles.id, roles.nom, roles.permissions, roles.created_at, COUNT(users.id) AS users_count
+             FROM roles
+             LEFT JOIN users ON users.role_id = roles.id
+             WHERE roles.id = :id
+             GROUP BY roles.id, roles.nom, roles.permissions, roles.created_at
+             LIMIT 1'
+        );
+        $statement->execute(['id' => $id]);
+        $role = $statement->fetch();
+
+        if (!is_array($role) || $this->isSaasRoleName((string) ($role['nom'] ?? ''))) {
+            return null;
+        }
+
+        return $role;
+    }
+
+    public function update(int $id, array $data): bool
+    {
+        $name = trim((string) ($data['nom'] ?? ''));
+        if ($id < 1 || $name === '') {
+            throw new InvalidArgumentException('Données du rôle invalides.');
+        }
+        if ($this->isSaasRoleName($name)) {
+            throw new InvalidArgumentException('Ce rôle est réservé à l’espace SaaS.');
+        }
+
+        $statement = Database::connection()->prepare(
+            'UPDATE roles SET nom = :nom, permissions = :permissions WHERE id = :id'
+        );
+        $statement->execute([
+            'nom' => $name,
+            'permissions' => $data['permissions'] ?? null,
+            'id' => $id,
+        ]);
+
+        return $statement->rowCount() > 0;
     }
 
     public function isAssignableInShop(int $roleId): bool

@@ -47,7 +47,11 @@ class RoleController extends AppController
 
     public function store(array $params = []): void
     {
-        $name = trim((string) ($_POST['nom'] ?? ''));
+        $existingPermissions = $this->permissionKeys($role['permissions'] ?? null);
+        $isSystemRole = in_array('all', $existingPermissions, true);
+        $name = $isSystemRole
+            ? (string) ($role['nom'] ?? '')
+            : trim((string) ($_POST['nom'] ?? ''));
 
         if ($name === '') {
             $this->flashError('Le nom du role est obligatoire.');
@@ -78,6 +82,80 @@ class RoleController extends AppController
         } catch (Throwable $exception) {
             $this->flashError('Impossible de creer le role: ' . $exception->getMessage());
             $this->redirect('/roles/create');
+        }
+    }
+
+    public function edit(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $role = $this->roles->findWithUsage($id);
+
+        if ($role === null) {
+            $this->flashError('Rôle introuvable ou réservé à l’administration SaaS.');
+            $this->redirect('/roles');
+        }
+
+        $roles = $this->roles->allWithUsage();
+        $shopId = $this->currentShopId();
+        $planModules = (new ModuleRegistry())->enabledForShop($shopId);
+
+        $this->render('users/role-create', [
+            'pageTitle' => 'Modifier un rôle',
+            'activeMenu' => 'roles',
+            'permissionGroups' => $this->permissionGroups($planModules),
+            'planModules' => $planModules,
+            'planSubscription' => (new SubscriptionGate())->currentForShop($shopId),
+            'roles' => $roles,
+            'roleStats' => $this->roleStats($roles),
+            'editingRole' => $role,
+        ]);
+    }
+
+    public function update(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $role = $this->roles->findWithUsage($id);
+
+        if ($role === null) {
+            $this->flashError('Rôle introuvable ou réservé à l’administration SaaS.');
+            $this->redirect('/roles');
+        }
+
+        $name = trim((string) ($_POST['nom'] ?? ''));
+        if ($name === '' || mb_strlen($name) > 50) {
+            $this->flashError($name === '' ? 'Le nom du rôle est obligatoire.' : 'Le nom du rôle ne peut pas dépasser 50 caractères.');
+            $this->redirect('/roles/' . $id . '/edit');
+        }
+        if ($this->roles->isSaasRoleName($name)) {
+            $this->flashError('Ce rôle est réservé à l’espace de gestion SaaS.');
+            $this->redirect('/roles/' . $id . '/edit');
+        }
+
+        $planModules = (new ModuleRegistry())->enabledForShop($this->currentShopId());
+        $permissions = $this->permissionsPayload($_POST['permissions'] ?? [], $planModules);
+        if ($isSystemRole) {
+            $permissions = ['all' => true] + $permissions;
+        }
+
+        try {
+            $payload = json_encode($permissions, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            $changed = $this->roles->update($id, ['nom' => $name, 'permissions' => $payload]);
+
+            if (!$changed) {
+                $freshRole = $this->roles->findWithUsage($id);
+                if ($freshRole === null || (string) $freshRole['nom'] !== $name || (string) $freshRole['permissions'] !== $payload) {
+                    throw new RuntimeException('La mise à jour n’a pas été appliquée.');
+                }
+            }
+
+            $this->flashSuccess('Rôle modifié avec succès.');
+            $this->redirect('/roles');
+        } catch (Throwable $exception) {
+            $message = str_contains(strtolower($exception->getMessage()), 'duplicate')
+                ? 'Un rôle portant ce nom existe déjà.'
+                : 'Impossible de modifier le rôle : ' . $exception->getMessage();
+            $this->flashError($message);
+            $this->redirect('/roles/' . $id . '/edit');
         }
     }
 

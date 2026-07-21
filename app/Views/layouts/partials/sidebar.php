@@ -1,7 +1,7 @@
 <?php
 
 $role = strtolower((string) ($currentUser['role'] ?? $currentUser['role_legacy'] ?? 'agent'));
-$isAdmin = in_array($role, ['admin', 'super_admin', 'gerant'], true);
+$isAdmin = in_array($role, ['admin', 'super_admin', 'owner', 'gerant'], true);
 $profile = is_array($shopCategoryProfile ?? null) ? $shopCategoryProfile : [];
 $catalogLabel = (string) ($profile['catalog_label'] ?? 'Catalogue produits');
 $posLabel = (string) ($profile['pos_label'] ?? 'Caisse POS');

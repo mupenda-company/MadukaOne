@@ -5,6 +5,8 @@ $roles = is_array($roles ?? null) ? $roles : [];
 $roleStats = is_array($roleStats ?? null) ? $roleStats : [];
 $planModules = is_array($planModules ?? null) ? $planModules : [];
 $planSubscription = is_array($planSubscription ?? null) ? $planSubscription : null;
+$editingRole = is_array($editingRole ?? null) ? $editingRole : null;
+$isEditing = $editingRole !== null;
 $safe = static fn ($value, string $fallback = '-'): string => htmlspecialchars((string) (($value ?? '') !== '' ? $value : $fallback), ENT_QUOTES, 'UTF-8');
 
 $permissionItems = static function ($rawPermissions): array {
@@ -22,6 +24,8 @@ $permissionItems = static function ($rawPermissions): array {
 
     return $decoded;
 };
+$selectedPermissions = $permissionItems($editingRole['permissions'] ?? null);
+$isSystemRole = $isEditing && !empty($selectedPermissions['all']);
 
 $icon = static function (string $name): string {
     $paths = [
@@ -40,9 +44,9 @@ $icon = static function (string $name): string {
     <div class="dashboard-hero">
         <div class="min-w-0">
             <p class="mb-3 text-xs font-semibold uppercase tracking-[.18em] text-teal-700">Administration</p>
-            <h1 class="text-3xl font-bold tracking-normal text-slate-950">Ajouter un role</h1>
+            <h1 class="text-3xl font-bold tracking-normal text-slate-950"><?= $isEditing ? 'Modifier le rôle' : 'Ajouter un rôle' ?></h1>
             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Créez un profil d’accès avec uniquement les permissions disponibles dans le plan d’abonnement actif.
+                <?= $isEditing ? 'Mettez à jour le nom et les permissions autorisées par le plan actif.' : 'Créez un profil d’accès avec uniquement les permissions disponibles dans le plan d’abonnement actif.' ?>
             </p>
         </div>
         <a class="btn-secondary gap-2" href="<?= $url('/roles') ?>">
@@ -51,7 +55,7 @@ $icon = static function (string $name): string {
         </a>
     </div>
 
-    <form class="grid gap-5 xl:grid-cols-[1fr_22rem]" method="post" action="<?= $url('/roles') ?>" accept-charset="UTF-8">
+    <form class="grid gap-5 xl:grid-cols-[1fr_22rem]" method="post" action="<?= $url($isEditing ? '/roles/' . (int) $editingRole['id'] . '/update' : '/roles') ?>" accept-charset="UTF-8">
         <section class="surface-panel">
             <div class="panel-header">
                 <div>
@@ -64,7 +68,7 @@ $icon = static function (string $name): string {
             <div class="mt-5 space-y-5">
                 <label class="space-y-2">
                     <span class="text-sm font-semibold text-slate-700">Nom du role</span>
-                    <input class="field-control" name="nom" type="text" maxlength="50" required placeholder="Ex: Responsable stock">
+                    <input class="field-control <?= $isSystemRole ? 'cursor-not-allowed bg-slate-100 text-slate-500' : '' ?>" name="nom" type="text" maxlength="50" required value="<?= $safe($editingRole['nom'] ?? '', '') ?>" placeholder="Ex: Responsable stock" <?= $isSystemRole ? 'readonly' : '' ?>>
                 </label>
 
                 <div>
@@ -82,7 +86,7 @@ $icon = static function (string $name): string {
                                 <div class="mt-3 space-y-3">
                                     <?php foreach (($group['items'] ?? []) as $permission => $label): ?>
                                         <label class="flex items-start gap-3 rounded-lg bg-white p-3 shadow-sm">
-                                            <input class="mt-1 h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" name="permissions[]" type="checkbox" value="<?= $safe((string) $permission) ?>">
+                                            <input class="mt-1 h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" name="permissions[]" type="checkbox" value="<?= $safe((string) $permission) ?>" <?= !empty($selectedPermissions[$permission]) ? 'checked' : '' ?>>
                                             <span>
                                                 <span class="block text-sm font-semibold text-slate-900"><?= $safe((string) $label) ?></span>
                                                 <span class="block text-xs text-slate-500"><?= $safe((string) $permission) ?></span>
@@ -94,6 +98,9 @@ $icon = static function (string $name): string {
                         <?php endforeach; ?>
                     </div>
                     <?php if ($permissionGroups === []): ?><div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Aucune permission n’est disponible. Vérifiez le statut de l’abonnement et les fonctionnalités attribuées à son plan.</div><?php endif; ?>
+                    <?php if ($isSystemRole): ?>
+                        <div class="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm font-semibold text-violet-800">Ce rôle possède l’accès administrateur complet. Cette permission système sera conservée automatiquement.</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </section>
@@ -156,7 +163,7 @@ $icon = static function (string $name): string {
             <div class="flex flex-col gap-3">
                 <button class="btn-primary w-full gap-2" type="submit">
                     <?= $icon('save') ?>
-                    <span>Enregistrer le role</span>
+                    <span><?= $isEditing ? 'Enregistrer les modifications' : 'Enregistrer le rôle' ?></span>
                 </button>
                 <a class="btn-secondary w-full" href="<?= $url('/roles') ?>">Annuler</a>
             </div>

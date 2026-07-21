@@ -467,6 +467,21 @@ final class SaasAdminRepository extends Model
 
     public function updateUserAccess(int $id, array $data): bool
     {
+        $shopId = $this->nullablePositiveInt($data['shop_id'] ?? null);
+        $roleId = $this->nullablePositiveInt($data['role_id'] ?? null);
+
+        if ($shopId !== null && $roleId !== null) {
+            $roleStatement = Database::connection()->prepare('SELECT nom FROM roles WHERE id = :id LIMIT 1');
+            $roleStatement->execute(['id' => $roleId]);
+            $roleName = strtolower(trim((string) $roleStatement->fetchColumn()));
+            $asciiRoleName = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $roleName);
+            $compactRoleName = preg_replace('/[^a-z0-9]+/', '', strtolower((string) $asciiRoleName)) ?? '';
+
+            if (in_array($compactRoleName, ['admin', 'administrateur', 'administratrice', 'superadmin', 'superadministrateur', 'superadministratrice'], true)) {
+                throw new InvalidArgumentException('Les rôles Admin et Super Admin sont réservés à l’administration SaaS et ne peuvent pas être liés à une boutique.');
+            }
+        }
+
         $statement = Database::connection()->prepare(
             'UPDATE users
              SET shop_id = :shop_id,
@@ -476,8 +491,8 @@ final class SaasAdminRepository extends Model
              WHERE id = :id'
         );
         $statement->execute([
-            'shop_id' => $this->nullablePositiveInt($data['shop_id'] ?? null),
-            'role_id' => $this->nullablePositiveInt($data['role_id'] ?? null),
+            'shop_id' => $shopId,
+            'role_id' => $roleId,
             'role_legacy' => in_array(($data['role_legacy'] ?? 'agent'), ['admin', 'agent'], true) ? $data['role_legacy'] : 'agent',
             'actif' => isset($data['actif']) ? (int) (bool) $data['actif'] : 0,
             'id' => $id,

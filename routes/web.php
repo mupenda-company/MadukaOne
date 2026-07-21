@@ -176,6 +176,8 @@ return [
     ['GET', '/roles', 'RoleController@index', $protected],
     ['GET', '/roles/create', 'RoleController@create', $protected],
     ['POST', '/roles', 'RoleController@store', $protected],
+    ['GET', '/roles/{id}/edit', 'RoleController@edit', $protected],
+    ['POST', '/roles/{id}/update', 'RoleController@update', $protected],
     ['GET', '/roles-permissions', 'RoleController@index', $protected],
 
     ['GET', '/pos', 'PosController@index', $protected],

@@ -99,12 +99,17 @@ class ShopController extends AppController
     public function updateSettings(array $params = []): void
     {
         $shopId = $this->currentShopId();
+        $shop = $this->shops->find($shopId);
+        if ($shop === null) {
+            $this->abort(404, 'Boutique introuvable.');
+        }
+
         $data = [
             'nom' => $_POST['nom'] ?? '',
             'adresse' => $_POST['adresse'] ?? null,
             'telephone' => $_POST['telephone'] ?? null,
             'email' => $_POST['email'] ?? null,
-            'logo_url' => $_POST['logo_url'] ?? null,
+            'logo_url' => !empty($_POST['remove_logo']) ? null : ($shop['logo_url'] ?? null),
             'devise_principale' => $_POST['devise_principale'] ?? 'USD',
             'taux_change_cdf' => $_POST['taux_change_cdf'] ?? 0,
         ];
@@ -116,12 +121,27 @@ class ShopController extends AppController
             $this->redirect('/shops/settings');
         }
 
+        $previousLogoUrl = (string) ($shop['logo_url'] ?? '');
+        try {
+            $uploadedLogoUrl = $this->storeUploadedLogo($shopId, $_FILES['logo_file'] ?? null);
+            if ($uploadedLogoUrl !== null) {
+                $data['logo_url'] = $uploadedLogoUrl;
+            }
+        } catch (Throwable $exception) {
+            $this->flashError($exception->getMessage());
+            $this->redirect('/shops/settings');
+        }
+
         if (!$this->shops->updateSettings($shopId, $data)) {
             $shop = $this->shops->find($shopId);
 
             if ($shop === null) {
                 $this->abort(404, 'Boutique introuvable.');
             }
+        }
+
+        if ($previousLogoUrl !== '' && $previousLogoUrl !== (string) ($data['logo_url'] ?? '')) {
+            $this->deleteLocalLogo($previousLogoUrl);
         }
 
         $this->flashSuccess('Parametres de la boutique mis a jour.');
@@ -148,17 +168,58 @@ class ShopController extends AppController
             return 'L adresse email de la boutique est invalide.';
         }
 
-        $logoUrl = trim((string) ($data['logo_url'] ?? ''));
+        return null;
+    }
 
-        if ($logoUrl !== '') {
-            $scheme = strtolower((string) parse_url($logoUrl, PHP_URL_SCHEME));
-
-            if (filter_var($logoUrl, FILTER_VALIDATE_URL) === false || !in_array($scheme, ['http', 'https'], true)) {
-                return 'L URL du logo doit etre une adresse HTTP ou HTTPS valide.';
-            }
+    private function storeUploadedLogo(int $shopId, mixed $file): ?string
+    {
+        if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+        if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new InvalidArgumentException('Le téléversement du logo a échoué. Veuillez réessayer.');
         }
 
-        return null;
+        $temporaryPath = (string) ($file['tmp_name'] ?? '');
+        $size = (int) ($file['size'] ?? 0);
+        if ($temporaryPath === '' || !is_uploaded_file($temporaryPath) || $size < 1 || $size > 1024 * 1024) {
+            throw new InvalidArgumentException('Le logo doit être une image valide de 1 Mo maximum.');
+        }
+
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($temporaryPath);
+        $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        if (!is_string($mime) || !isset($extensions[$mime])) {
+            throw new InvalidArgumentException('Formats autorisés : JPG, PNG, WEBP ou GIF.');
+        }
+
+        $directory = dirname(__DIR__, 2) . '/public/uploads/shops';
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            throw new RuntimeException('Le dossier de stockage du logo est indisponible.');
+        }
+
+        $filename = 'shop-' . $shopId . '-' . bin2hex(random_bytes(8)) . '.' . $extensions[$mime];
+        if (!move_uploaded_file($temporaryPath, $directory . '/' . $filename)) {
+            throw new RuntimeException('Impossible d’enregistrer le logo sur le serveur.');
+        }
+
+        $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+        return ($basePath === '.' ? '' : $basePath) . '/uploads/shops/' . $filename;
+    }
+
+    private function deleteLocalLogo(string $logoUrl): void
+    {
+        $path = (string) parse_url($logoUrl, PHP_URL_PATH);
+        $marker = '/uploads/shops/';
+        $position = strpos($path, $marker);
+        if ($position === false) {
+            return;
+        }
+
+        $filename = basename(substr($path, $position + strlen($marker)));
+        $fullPath = dirname(__DIR__, 2) . '/public/uploads/shops/' . $filename;
+        if ($filename !== '' && is_file($fullPath)) {
+            unlink($fullPath);
+        }
     }
 
     private function guardShopManagement(): void

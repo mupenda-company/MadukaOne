@@ -143,14 +143,13 @@ $icon = static function (string $name): string {
                                 <?= $icon('users') ?>
                                 <?= $usersCount ?> utilisateur(s)
                             </span>
-                            <button
+                            <a
                                 class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                                type="button"
-                                data-role-pending-action
+                                href="<?= $url('/roles/' . (int) ($role['id'] ?? 0) . '/edit') ?>"
                             >
                                 <?= $icon('edit') ?>
                                 <span>Modifier</span>
-                            </button>
+                            </a>
                         </div>
                     </div>
 
@@ -221,10 +220,5 @@ document.addEventListener('DOMContentLoaded', function () {
     assignmentFilter?.addEventListener('change', applyFilters);
     permissionFilter?.addEventListener('change', applyFilters);
 
-    document.querySelectorAll('[data-role-pending-action]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            window.alert('Modification des roles : interface prete. Il reste a raccorder les routes backend de gestion.');
-        });
-    });
 });
 </script>

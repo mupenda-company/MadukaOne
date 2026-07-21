@@ -320,6 +320,11 @@ $icon = static function (string $name): string {
                 Aucun produit ne correspond aux filtres sélectionnés.
             </div>
         </div>
+
+        <div class="mt-5 hidden flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between" data-products-pagination>
+            <p class="text-sm text-slate-500" data-products-page-summary></p>
+            <nav class="flex flex-wrap items-center gap-2" aria-label="Pagination des produits" data-products-pages></nav>
+        </div>
     </section>
 
     <div class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4" data-product-category-modal>
@@ -355,7 +360,12 @@ $icon = static function (string $name): string {
         const price = root.querySelector('[data-products-price]');
         const count = root.querySelector('[data-products-count]');
         const empty = root.querySelector('[data-products-empty]');
+        const pagination = root.querySelector('[data-products-pagination]');
+        const pageSummary = root.querySelector('[data-products-page-summary]');
+        const pages = root.querySelector('[data-products-pages]');
         const reset = root.querySelector('[data-products-reset]');
+        const pageSize = 20;
+        let currentPage = 1;
         const categoryEndpoint = '<?= $url('/products/categories') ?>';
         const categoryModal = root.querySelector('[data-product-category-modal]');
         const categoryOpen = root.querySelector('[data-product-category-open]');
@@ -397,36 +407,98 @@ $icon = static function (string $name): string {
             return true;
         };
 
+        const pageButton = (label, page, options = {}) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = label;
+            button.className = options.active
+                ? 'grid h-10 min-w-10 place-items-center rounded-lg bg-teal-700 px-3 text-sm font-bold text-white shadow-sm'
+                : 'grid h-10 min-w-10 place-items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800 disabled:cursor-not-allowed disabled:opacity-40';
+            button.disabled = Boolean(options.disabled);
+            if (options.current) {
+                button.setAttribute('aria-current', 'page');
+            }
+            button.addEventListener('click', () => {
+                currentPage = page;
+                applyFilters();
+                root.querySelector('[data-products-table]')?.closest('section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            return button;
+        };
+
+        const renderPagination = (totalItems) => {
+            const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            const start = totalItems === 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
+            const end = Math.min(currentPage * pageSize, totalItems);
+
+            if (pageSummary) {
+                pageSummary.textContent = totalItems === 0
+                    ? 'Aucun produit à afficher'
+                    : `Produits ${start} à ${end} sur ${totalItems}`;
+            }
+            if (!pages || !pagination) {
+                return;
+            }
+
+            pages.replaceChildren();
+            pagination.classList.toggle('hidden', totalItems <= pageSize);
+            pagination.classList.toggle('flex', totalItems > pageSize);
+            if (totalItems <= pageSize) {
+                return;
+            }
+
+            pages.appendChild(pageButton('Précédent', currentPage - 1, { disabled: currentPage === 1 }));
+            const firstPage = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+            const lastPage = Math.min(totalPages, Math.max(currentPage + 2, 5));
+            for (let page = firstPage; page <= lastPage; page += 1) {
+                pages.appendChild(pageButton(String(page), page, {
+                    active: page === currentPage,
+                    current: page === currentPage,
+                }));
+            }
+            pages.appendChild(pageButton('Suivant', currentPage + 1, { disabled: currentPage === totalPages }));
+        };
+
         const applyFilters = () => {
             const query = (search?.value || '').trim().toLowerCase();
             const statusValue = status?.value || 'all';
             const categoryValue = category?.value || 'all';
             const stockValue = stock?.value || 'all';
             const priceValue = price?.value || 'all';
-            let visible = 0;
-
-            rows.forEach((row) => {
-                const isVisible =
+            const matchingRows = rows.filter((row) => {
+                return (
                     (query === '' || (row.dataset.search || '').includes(query)) &&
                     (statusValue === 'all' || row.dataset.status === statusValue || (statusValue === 'expiration' && row.dataset.expirationAlert === '1')) &&
                     (categoryValue === 'all' || row.dataset.category === categoryValue) &&
                     matchesStock(row, stockValue) &&
-                    matchesPrice(Number(row.dataset.price || 0), priceValue);
-
-                row.classList.toggle('hidden', !isVisible);
-                visible += isVisible ? 1 : 0;
+                    matchesPrice(Number(row.dataset.price || 0), priceValue)
+                );
             });
 
+            const totalPages = Math.max(1, Math.ceil(matchingRows.length / pageSize));
+            currentPage = Math.min(currentPage, totalPages);
+            const startIndex = (currentPage - 1) * pageSize;
+            const visibleRows = new Set(matchingRows.slice(startIndex, startIndex + pageSize));
+            rows.forEach((row) => row.classList.toggle('hidden', !visibleRows.has(row)));
+
             if (count) {
-                count.textContent = String(visible);
+                count.textContent = String(matchingRows.length);
             }
 
-            empty?.classList.toggle('hidden', visible !== 0);
+            empty?.classList.toggle('hidden', matchingRows.length !== 0);
+            renderPagination(matchingRows.length);
         };
 
         [search, status, category, stock, price].forEach((control) => {
-            control?.addEventListener('input', applyFilters);
-            control?.addEventListener('change', applyFilters);
+            control?.addEventListener('input', () => {
+                currentPage = 1;
+                applyFilters();
+            });
+            control?.addEventListener('change', () => {
+                currentPage = 1;
+                applyFilters();
+            });
         });
 
         reset?.addEventListener('click', () => {
@@ -445,6 +517,7 @@ $icon = static function (string $name): string {
             if (price) {
                 price.value = 'all';
             }
+            currentPage = 1;
             applyFilters();
         });
 

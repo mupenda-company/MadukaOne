@@ -33,7 +33,7 @@ $icon = static function (string $name): string {
         <a class="btn-secondary" href="<?= $url('/dashboard') ?>">Tableau de bord</a>
     </div>
 
-    <form class="grid gap-5 xl:grid-cols-[1fr_22rem]" method="post" action="<?= $url('/shops/settings') ?>" accept-charset="UTF-8">
+    <form class="grid gap-5 xl:grid-cols-[1fr_22rem]" method="post" action="<?= $url('/shops/settings') ?>" enctype="multipart/form-data" accept-charset="UTF-8">
         <section class="surface-panel">
             <div class="panel-header">
                 <div>
@@ -60,11 +60,22 @@ $icon = static function (string $name): string {
                     <span class="text-sm font-semibold text-slate-700">Email</span>
                     <input class="field-control" name="email" type="email" value="<?= $value('email') ?>">
                 </label>
-                <label class="space-y-2 sm:col-span-2">
-                    <span class="text-sm font-semibold text-slate-700">URL du logo public</span>
-                    <input class="field-control" name="logo_url" type="url" value="<?= $value('logo_url') ?>" placeholder="https://exemple.com/logo.png">
-                    <span class="block text-xs text-slate-500">Le logo apparaît dans l’en-tête du catalogue public.</span>
-                </label>
+                <div class="space-y-3 sm:col-span-2">
+                    <span class="text-sm font-semibold text-slate-700">Logo de la boutique</span>
+                    <div class="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
+                        <div class="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-2xl border border-slate-200 bg-white text-2xl font-black text-teal-700">
+                            <img class="<?= empty($shop['logo_url']) ? 'hidden ' : '' ?>h-full w-full object-contain p-2" src="<?= $value('logo_url') ?>" alt="Aperçu du logo" data-logo-preview>
+                            <span class="<?= !empty($shop['logo_url']) ? 'hidden ' : '' ?>" data-logo-placeholder><?= htmlspecialchars(strtoupper(substr((string) ($shop['nom'] ?? 'B'), 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                        </div>
+                        <div class="min-w-0 flex-1 space-y-2">
+                            <input class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" name="logo_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-logo-input>
+                            <p class="text-xs leading-5 text-slate-500">JPG, PNG, WEBP ou GIF, jusqu’à 1 Mo. Le logo apparaîtra dans l’en-tête du catalogue public.</p>
+                            <?php if (!empty($shop['logo_url'])): ?>
+                                <label class="inline-flex items-center gap-2 text-sm font-semibold text-red-600"><input name="remove_logo" type="checkbox" value="1"> Supprimer le logo actuel</label>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -108,3 +119,15 @@ $icon = static function (string $name): string {
         </aside>
     </form>
 </section>
+<script>
+document.querySelector('[data-logo-input]')?.addEventListener('change', function () {
+    const file = this.files?.[0];
+    if (!file) return;
+    const preview = document.querySelector('[data-logo-preview]');
+    if (preview) {
+        preview.src = URL.createObjectURL(file);
+        preview.classList.remove('hidden');
+    }
+    document.querySelector('[data-logo-placeholder]')?.classList.add('hidden');
+});
+</script>

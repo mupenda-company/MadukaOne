@@ -38,8 +38,12 @@ final class SaasAccessController extends BaseSaasAdminController
     public function updateUser(array $params = []): void
     {
         $id = (int) ($params['id'] ?? 0);
-        $this->repo->updateUserAccess($id, $_POST);
-        $this->flashSuccess('Acces utilisateur mis a jour.');
+        try {
+            $this->repo->updateUserAccess($id, $_POST);
+            $this->flashSuccess('Acces utilisateur mis a jour.');
+        } catch (InvalidArgumentException $exception) {
+            $this->flashError($exception->getMessage());
+        }
         $this->redirect('/saas-admin/utilisateurs');
     }
 

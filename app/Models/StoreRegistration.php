@@ -72,7 +72,7 @@ final class StoreRegistration
                 'email' => $email,
             ]);
             $shopId = (int) $pdo->lastInsertId();
-            $roleId = $this->managerRoleId($pdo);
+            $roleId = $this->ownerRoleId($pdo);
             $users = new User();
             $userId = $users->create([
                 'nom' => trim((string) $data['name']),
@@ -190,11 +190,21 @@ final class StoreRegistration
         return $id !== false ? (int) $id : null;
     }
 
-    private function managerRoleId(PDO $pdo): ?int
+    private function ownerRoleId(PDO $pdo): int
     {
-        $id = $pdo->query("SELECT id FROM roles WHERE LOWER(nom) IN ('gerant', 'gérant') ORDER BY id ASC LIMIT 1")->fetchColumn();
+        $id = $pdo->query("SELECT id FROM roles WHERE LOWER(nom) IN ('proprietaire', 'propriétaire') ORDER BY id ASC LIMIT 1")->fetchColumn();
 
-        return $id !== false ? (int) $id : null;
+        if ($id !== false) {
+            return (int) $id;
+        }
+
+        $statement = $pdo->prepare('INSERT INTO roles (nom, permissions) VALUES (:nom, :permissions)');
+        $statement->execute([
+            'nom' => 'Propriétaire',
+            'permissions' => json_encode(['all' => true], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        ]);
+
+        return (int) $pdo->lastInsertId();
     }
 
     private function seedBusinessSettings(PDO $pdo, int $shopId): void

@@ -57,7 +57,7 @@ final class User extends Model
             $this->baseSelect() . " WHERE users.id = :id AND users.shop_id = :shop_id
                 AND (
                     roles.nom IS NULL
-                    OR LOWER(REPLACE(REPLACE(roles.nom, '-', ' '), '_', ' ')) NOT IN ('super admin', 'super administrateur')
+                    OR LOWER(REPLACE(REPLACE(roles.nom, '-', ' '), '_', ' ')) NOT IN ('admin', 'administrateur', 'administratrice', 'super admin', 'super administrateur')
                 )
               LIMIT 1"
         );
@@ -137,7 +137,7 @@ final class User extends Model
         $sql = $this->baseSelect() . " WHERE users.shop_id = :shop_id
             AND (
                 roles.nom IS NULL
-                OR LOWER(REPLACE(REPLACE(roles.nom, '-', ' '), '_', ' ')) NOT IN ('super admin', 'super administrateur')
+                OR LOWER(REPLACE(REPLACE(roles.nom, '-', ' '), '_', ' ')) NOT IN ('admin', 'administrateur', 'administratrice', 'super admin', 'super administrateur')
             )";
 
         if ($activeOnly) {
@@ -171,6 +171,12 @@ final class User extends Model
         $password = (string) ($data['password'] ?? '');
         $passwordHash = $data['password_hash'] ?? null;
         $authProvider = $this->normalizeAuthProvider((string) ($data['auth_provider'] ?? 'local'));
+        $resolvedShopId = $shopId ?? $this->nullablePositiveInt($data['shop_id'] ?? null);
+        $resolvedRoleId = $this->nullablePositiveInt($data['role_id'] ?? null);
+
+        if ($resolvedShopId !== null && $resolvedRoleId !== null) {
+            $this->assertShopRoleAssignable($resolvedRoleId);
+        }
 
         if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             throw new InvalidArgumentException('Email utilisateur invalide.');
@@ -195,8 +201,8 @@ final class User extends Model
         );
 
         $statement->execute([
-            'shop_id' => $shopId ?? $this->nullablePositiveInt($data['shop_id'] ?? null),
-            'role_id' => $this->nullablePositiveInt($data['role_id'] ?? null),
+            'shop_id' => $resolvedShopId,
+            'role_id' => $resolvedRoleId,
             'nom' => trim((string) ($data['nom'] ?? '')),
             'email' => $email,
             'telephone' => $this->nullableString($data['telephone'] ?? null),
@@ -281,6 +287,8 @@ final class User extends Model
             throw new InvalidArgumentException('Donnees employe invalides.');
         }
 
+        $this->assertShopRoleAssignable($roleId);
+
         try {
             $statement = Database::connection()->prepare(
                 "INSERT INTO users (
@@ -320,6 +328,8 @@ final class User extends Model
             throw new InvalidArgumentException('Donnees employe invalides.');
         }
 
+        $this->assertShopRoleAssignable($roleId);
+
         $statement = Database::connection()->prepare(
             "INSERT INTO users (
                 shop_id, role_id, prenom, nom, email, telephone, password_hash, auth_provider,
@@ -345,6 +355,12 @@ final class User extends Model
 
     public function updateByShop(int $id, int $shopId, array $data): bool
     {
+        $roleId = $this->nullablePositiveInt($data['role_id'] ?? null);
+        if ($roleId === null) {
+            throw new InvalidArgumentException('Role utilisateur invalide.');
+        }
+        $this->assertShopRoleAssignable($roleId);
+
         $statement = Database::connection()->prepare(
             'UPDATE users
              SET role_id = :role_id,
@@ -356,7 +372,7 @@ final class User extends Model
         );
 
         $statement->execute([
-            'role_id' => $this->nullablePositiveInt($data['role_id'] ?? null),
+            'role_id' => $roleId,
             'nom' => trim((string) ($data['nom'] ?? '')),
             'telephone' => $this->nullableString($data['telephone'] ?? null),
             'role_legacy' => $this->normalizeLegacyRole((string) ($data['role_legacy'] ?? 'agent')),
@@ -380,6 +396,8 @@ final class User extends Model
         if ($id < 1 || $nom === '' || $prenom === '' || $roleId === null || $shopId === null) {
             throw new InvalidArgumentException('Donnees utilisateur invalides.');
         }
+
+        $this->assertShopRoleAssignable($roleId);
 
         $statement = Database::connection()->prepare(
             'UPDATE users
@@ -628,6 +646,7 @@ final class User extends Model
 
         return match ($roleName) {
             'super admin', 'super_admin', 'admin', 'administrateur' => 'admin',
+            'propriétaire', 'proprietaire', 'owner' => 'owner',
             'gerant', 'gérant', 'manager' => 'gerant',
             'caissier', 'agent', 'vendeur' => 'agent',
             default => strtolower((string) ($user['role_legacy'] ?? 'agent')),
@@ -636,10 +655,14 @@ final class User extends Model
 
     public function isSaasAdminUser(array $user): bool
     {
+        if ($this->nullablePositiveInt($user['shop_id'] ?? null) !== null) {
+            return false;
+        }
+
         $roleName = strtolower(trim((string) ($user['role_name'] ?? '')));
         $roleName = str_replace(['-', ' '], '_', $roleName);
 
-        return in_array($roleName, ['super_admin', 'super_administrateur'], true);
+        return in_array($roleName, ['admin', 'administrateur', 'administratrice', 'super_admin', 'super_administrateur', 'super_administratrice'], true);
     }
 
     public function verifyPassword(array $user, string $password): bool
@@ -725,9 +748,27 @@ final class User extends Model
         $statement->execute(['id' => $roleId]);
         $role = strtolower(trim((string) $statement->fetchColumn()));
 
-        return in_array($role, ['super admin', 'super_admin', 'admin', 'administrateur', 'gerant', 'gérant', 'manager'], true)
+        return in_array($role, ['super admin', 'super_admin', 'admin', 'administrateur', 'propriétaire', 'proprietaire', 'owner', 'gerant', 'gérant', 'manager'], true)
             ? 'admin'
             : 'agent';
+    }
+
+    private function assertShopRoleAssignable(int $roleId): void
+    {
+        $statement = Database::connection()->prepare('SELECT nom FROM roles WHERE id = :id LIMIT 1');
+        $statement->execute(['id' => $roleId]);
+        $roleName = $statement->fetchColumn();
+
+        if (!is_string($roleName)) {
+            throw new InvalidArgumentException('Role utilisateur introuvable.');
+        }
+
+        $asciiRoleName = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', strtolower(trim($roleName)));
+        $compactRoleName = preg_replace('/[^a-z0-9]+/', '', strtolower((string) $asciiRoleName)) ?? '';
+
+        if (in_array($compactRoleName, ['admin', 'administrateur', 'administratrice', 'superadmin', 'superadministrateur', 'superadministratrice'], true)) {
+            throw new InvalidArgumentException('Les roles Admin et Super Admin sont reserves a l administration SaaS.');
+        }
     }
 
     private function nullablePositiveInt(mixed $value): ?int

@@ -139,8 +139,8 @@ final class ShopContext
         $roleName = strtolower(trim((string) ($this->currentUser['role_name'] ?? '')));
         $roleName = str_replace(['-', ' '], '_', $roleName);
 
-        return in_array($role, ['admin', 'gerant'], true)
-            || in_array($roleName, ['admin', 'administrateur', 'gerant', 'gérant', 'manager', 'super_admin', 'super_administrateur'], true);
+        return in_array($role, ['owner', 'gerant'], true)
+            || in_array($roleName, ['proprietaire', 'propriétaire', 'owner', 'gerant', 'gérant', 'manager'], true);
     }
 
     private function canAccessAllShops(): bool
